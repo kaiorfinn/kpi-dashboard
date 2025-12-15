@@ -59,8 +59,9 @@ export default function App() {
     setError("");
 
     try {
-      const res = await fetch(API_URL, {
+      await fetch(API_URL, {
         method: "POST",
+        mode: "no-cors", // 🔑 REQUIRED for Apps Script
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           authKey,
@@ -73,16 +74,15 @@ export default function App() {
         })
       });
 
-      const json = await res.json();
-      if (json.error) throw new Error(json.error);
-
+      // Treat POST as success (Apps Script limitation)
       setFocusToday("");
       setBlockers("");
       setFocusTomorrow("");
 
+      // Refresh dashboard via GET
       fetchData(authKey);
     } catch (err) {
-      setError(err.message);
+      setError("Submission failed");
     } finally {
       setLoading(false);
     }
