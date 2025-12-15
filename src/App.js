@@ -40,224 +40,169 @@ export default function App() {
       setAuthKey(key);
       setData(json);
     } catch (err) {
-      setError("Submission failed. Please retry.");
+      setError("Failed to load dashboard data");
+    } finally {
+      setLoading(false);
     }
-    // DO NOT clear authKey here
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
-/* -----------------------------
- * SUBMIT DAILY UPDATE (POST)
- * --------------------------- */
-const submitUpdate = async () => {
-  if (!focusToday.trim()) return;
+  /* -----------------------------
+   * SUBMIT DAILY UPDATE (POST)
+   * --------------------------- */
+  const submitUpdate = async () => {
+    if (!focusToday.trim()) return;
 
-  setLoading(true);
-  setError("");
+    setLoading(true);
+    setError("");
 
-  try {
-    await fetch(API_URL, {
-      method: "POST",
-      mode: "no-cors", // 🔑 REQUIRED for Apps Script
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        authKey,
-        action: "submit_update",
-        payload: {
-          focus_today: focusToday,
-          blockers,
-          focus_tomorrow: focusTomorrow
-        }
-      })
-    });
+    try {
+      await fetch(API_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          authKey,
+          action: "submit_update",
+          payload: {
+            focus_today: focusToday,
+            blockers,
+            focus_tomorrow: focusTomorrow
+          }
+        })
+      });
 
-    // Treat POST as success (Apps Script limitation)
-    setFocusToday("");
-    setBlockers("");
-    setFocusTomorrow("");
+      setFocusToday("");
+      setBlockers("");
+      setFocusTomorrow("");
 
-    // Refresh dashboard via GET
-    fetchData(authKey);
-  } catch (err) {
-    setError("Submission failed");
-  } finally {
-    setLoading(false);
-  }
-};
+      fetchData(authKey);
+    } catch {
+      setError("Submission failed. Please retry.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-/* -----------------------------
- * INITIAL LOAD
- * --------------------------- */
-useEffect(() => {
-  if (authKey) {
-    fetchData(authKey);
-  }
-}, [authKey]);
+  /* -----------------------------
+   * INITIAL LOAD
+   * --------------------------- */
+  useEffect(() => {
+    if (authKey) fetchData(authKey);
+  }, [authKey]);
 
-/* -----------------------------
- * KPI CARD RENDERER
- * --------------------------- */
-const renderKpis = () => {
-  if (!data.kpis || data.kpis.length === 0) {
-    return <p>No KPIs assigned.</p>;
-  }
+  /* -----------------------------
+   * KPI CARD RENDERER
+   * --------------------------- */
+  const renderKpis = () => {
+    if (!data?.kpis?.length) {
+      return <p>No KPIs assigned.</p>;
+    }
 
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-        gap: 16
-      }}
-    >
-      {data.kpis.map(kpi => (
-        <div
-          key={kpi.KPI_ID}
-          style={{
-            border: "1px solid #ddd",
-            borderRadius: 8,
-            padding: 16,
-            background: "#fafafa"
-          }}
-        >
-          <h4 style={{ margin: "0 0 8px 0" }}>{kpi.KPI_Name}</h4>
-          <p style={{ margin: 0 }}>
-            Target: <strong>{kpi.Target_Value}</strong>
-          </p>
-          <p style={{ fontSize: 12, color: "#666" }}>
-            Metric: {kpi.Target_Metric}
-          </p>
-        </div>
-      ))}
-    </div>
-  );
-};
-
-/* -----------------------------
- * LOGIN SCREEN
- * --------------------------- */
-if (!authKey) {
-  return (
-    <div style={{ padding: 40, maxWidth: 420 }}>
-      <h2>KPI Dashboard Login</h2>
-
-      <input
-        type="password"
-        placeholder="Enter Auth Key"
-        style={{ width: "100%", padding: 8 }}
-        onKeyDown={e => {
-          if (e.key === "Enter") fetchData(e.target.value);
+    return (
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: 16
         }}
-      />
+      >
+        {data.kpis.map(kpi => (
+          <div
+            key={kpi.KPI_ID}
+            style={{
+              border: "1px solid #ddd",
+              borderRadius: 8,
+              padding: 16,
+              background: "#fafafa"
+            }}
+          >
+            <h4>{kpi.KPI_Name}</h4>
+            <p>
+              Target: <strong>{kpi.Target_Value}</strong>
+            </p>
+            <small>{kpi.Target_Metric}</small>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
-      {error && (
-        <p style={{ color: "red", marginTop: 12 }}>{error}</p>
-      )}
-    </div>
-  );
-}
+  /* -----------------------------
+   * LOGIN SCREEN
+   * --------------------------- */
+  if (!authKey) {
+    return (
+      <div style={{ padding: 40, maxWidth: 420 }}>
+        <h2>KPI Dashboard Login</h2>
 
-/* -----------------------------
- * LOADING STATE
- * --------------------------- */
-if (loading || !data) {
-  return <div style={{ padding: 40 }}>Loading…</div>;
-}
+        <input
+          type="password"
+          placeholder="Enter Auth Key"
+          style={{ width: "100%", padding: 8 }}
+          onKeyDown={e => {
+            if (e.key === "Enter") fetchData(e.target.value);
+          }}
+        />
 
-/* -----------------------------
- * DASHBOARD
- * --------------------------- */
-return (
-  <div style={{ padding: 24, maxWidth: 960 }}>
-    <h2>KPI Dashboard</h2>
+        {error && <p style={{ color: "red" }}>{error}</p>}
+      </div>
+    );
+  }
 
-    <p>
-      User: <strong>{data.userInfo.name}</strong> (
-      {data.userInfo.role})
-    </p>
+  /* -----------------------------
+   * LOADING STATE
+   * --------------------------- */
+  if (loading || !data) {
+    return <div style={{ padding: 40 }}>Loading…</div>;
+  }
 
-    <button
-      onClick={() => {
-        localStorage.removeItem("authKey");
-        window.location.reload();
-      }}
-      style={{ marginBottom: 20 }}
-    >
-      Log out
-    </button>
+  /* -----------------------------
+   * DASHBOARD
+   * --------------------------- */
+  return (
+    <div style={{ padding: 24, maxWidth: 960 }}>
+      <h2>KPI Dashboard</h2>
 
-    <h3>KPIs</h3>
-    {renderKpis()}
-
-    <h3 style={{ marginTop: 30 }}>Submit Daily Update</h3>
-
-    <div style={{ maxWidth: 500 }}>
-      <textarea
-        placeholder="What did you work on today?"
-        value={focusToday}
-        onChange={e => setFocusToday(e.target.value)}
-        rows={3}
-        style={{ width: "100%", padding: 8, marginBottom: 10 }}
-      />
-
-      <textarea
-        placeholder="Any blockers?"
-        value={blockers}
-        onChange={e => setBlockers(e.target.value)}
-        rows={2}
-        style={{ width: "100%", padding: 8, marginBottom: 10 }}
-      />
-
-      <textarea
-        placeholder="Focus for tomorrow"
-        value={focusTomorrow}
-        onChange={e => setFocusTomorrow(e.target.value)}
-        rows={2}
-        style={{ width: "100%", padding: 8, marginBottom: 10 }}
-      />
+      <p>
+        User: <strong>{data.userInfo.name}</strong> (
+        {data.userInfo.role})
+      </p>
 
       <button
-        disabled={loading || !focusToday.trim()}
-        onClick={submitUpdate}
+        onClick={() => {
+          localStorage.removeItem("authKey");
+          window.location.reload();
+        }}
       >
-        Submit Update
+        Log out
+      </button>
+
+      <h3>KPIs</h3>
+      {renderKpis()}
+
+      <h3>Submit Daily Update</h3>
+
+      <textarea
+        placeholder="Today"
+        value={focusToday}
+        onChange={e => setFocusToday(e.target.value)}
+      />
+
+      <textarea
+        placeholder="Blockers"
+        value={blockers}
+        onChange={e => setBlockers(e.target.value)}
+      />
+
+      <textarea
+        placeholder="Tomorrow"
+        value={focusTomorrow}
+        onChange={e => setFocusTomorrow(e.target.value)}
+      />
+
+      <button onClick={submitUpdate} disabled={!focusToday.trim()}>
+        Submit
       </button>
     </div>
-
-    <h3 style={{ marginTop: 30 }}>Latest Submission</h3>
-    {data.latestSubmission ? (
-      <ul>
-        <li>
-          <strong>Today:</strong>{" "}
-          {data.latestSubmission.Focus_Today}
-        </li>
-        <li>
-          <strong>Blockers:</strong>{" "}
-          {data.latestSubmission.Blockers || "None"}
-        </li>
-        <li>
-          <strong>Tomorrow:</strong>{" "}
-          {data.latestSubmission.Focus_Tomorrow}
-        </li>
-      </ul>
-    ) : (
-      <p>No submission yet.</p>
-    )}
-
-    <h3>Latest Feedback</h3>
-    {data.latestFeedback ? (
-      <ul>
-        {Object.entries(data.latestFeedback).map(([k, v]) => (
-          <li key={k}>
-            <strong>{k}:</strong> {String(v)}
-          </li>
-        ))}
-      </ul>
-    ) : (
-      <p>No feedback yet.</p>
-    )}
-  </div>
-);
+  );
 }
