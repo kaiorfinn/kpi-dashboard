@@ -233,7 +233,48 @@ export default function App() {
       <button onClick={() => { localStorage.removeItem("authKey"); window.location.reload(); }}>
         Log out
       </button>
+{/* KPI OVERVIEW */}
+<h3 style={{ marginTop: 32 }}>KPIs</h3>
 
+<div
+  style={{
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+    gap: 16
+  }}
+>
+  {data.kpis.map(k => (
+    <div
+      key={k.KPI_ID}
+      style={{
+        border: "1px solid #e5e7eb",
+        borderRadius: 12,
+        padding: 16,
+        background: "#fff"
+      }}
+    >
+      <strong>{k.KPI_Name}</strong>
+      <div style={{ color: "#555", marginBottom: 8 }}>
+        {k.Description}
+      </div>
+
+      <div style={{ height: 8, background: "#eee", borderRadius: 4 }}>
+        <div
+          style={{
+            width: `${k.Completion || 0}%`,
+            height: "100%",
+            background: k.Completion >= 100 ? "#16a34a" : "#2563eb",
+            borderRadius: 4
+          }}
+        />
+      </div>
+
+      <div style={{ marginTop: 6 }}>
+        Completion: {k.Completion || 0}%
+      </div>
+    </div>
+  ))}
+</div>
       {/* FILTERS */}
       <h3 style={{ marginTop: 30 }}>Submission History</h3>
 
