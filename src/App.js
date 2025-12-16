@@ -117,6 +117,85 @@ export default function App() {
   const isAdmin = data.userInfo.role === "Admin";
 
   /* =============================
+     SUBMIT UPDATE
+  ============================= */
+  const submitUpdate = async () => {
+    if (!selectedKPI) return alert("Select KPI");
+
+    const finalProgress =
+      taskStatus === "Done" ? 100 : Number(progressPercent) || 0;
+
+    const kpi = data.kpis.find(k => String(k.KPI_ID) === String(selectedKPI));
+    if (!kpi) return;
+
+    setLoading(true);
+    try {
+      await fetch(API_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          authKey,
+          action: "submit_update",
+          payload: {
+            kpi_id: selectedKPI,
+            kpi_frequency: kpi.KPI_Frequency,
+            task_status: taskStatus,
+            progress_percent: finalProgress,
+            focus_today: focusToday || "N/A",
+            blockers: blockers || "N/A",
+            focus_tomorrow: focusTomorrow || "N/A"
+          }
+        })
+      });
+
+      // reset form
+      setSelectedKPI("");
+      setTaskStatus("In Progress");
+      setProgressPercent("");
+      setFocusToday("");
+      setBlockers("");
+      setFocusTomorrow("");
+
+      setTimeout(() => fetchData(authKey), 600);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* =============================
+     ADMIN APPROVAL
+  ============================= */
+  const submitFeedback = async (submission, decision, adjustedProgress) => {
+    const rowId = submission.ROW_ID;
+    const draft = feedbackDraft[rowId] || {};
+
+    setSavingRowId(rowId);
+    try {
+      await fetch(API_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          authKey,
+          action: "submit_feedback",
+          payload: {
+            row_id: rowId,
+            kpi_id: submission.KPI_ID,
+            decision,                 // Approved | Rejected
+            adjusted_progress: adjustedProgress, // 0–100
+            feedback: draft.feedback || ""
+          }
+        })
+      });
+
+      setTimeout(() => fetchData(authKey), 600);
+    } finally {
+      setSavingRowId(null);
+    }
+  };
+
+  /* =============================
      UI
   ============================= */
   return (
