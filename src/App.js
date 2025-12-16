@@ -9,7 +9,7 @@ const API_URL =
 const getMonthKey = ts => {
   if (!ts) return "";
   const d = new Date(ts);
-  if (isNaN(d)) return "";
+  if (isNaN(d.getTime())) return "";
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 };
 
@@ -48,8 +48,9 @@ export default function App() {
   /* =============================
      ADMIN
   ============================= */
+  // Store drafts by ROW_ID so indexes never drift
   const [feedbackDraft, setFeedbackDraft] = useState({});
-  const [savingIndex, setSavingIndex] = useState(null);
+  const [savingRowId, setSavingRowId] = useState(null);
 
   /* =============================
      FETCH
@@ -86,23 +87,37 @@ export default function App() {
     if (!data?.submissionHistory) return [];
     return data.submissionHistory.map(s => ({
       ...s,
-      _month: getMonthKey(s.Timestamp)
+      _month: getMonthKey(s.Timestamp),
+      // Normalize decision: empty string/null/undefined => ""
+      _decision: s.Manager_Decision ? String(s.Manager_Decision).trim() : ""
     }));
   }, [data]);
 
   const months = useMemo(() => {
-    return [...new Set(submissions.map(s => s._month).filter(Boolean))];
+    return [...new Set(submissions.map(s => s._month).filter(Boolean))].sort();
   }, [submissions]);
 
   const filteredHistory = useMemo(() => {
     return submissions.filter(s => {
       if (filterMonth && s._month !== filterMonth) return false;
       if (filterKPI && String(s.KPI_ID) !== String(filterKPI)) return false;
-      if (filterDecision === "Approved" && s.Manager_Decision !== "Approved") return false;
-      if (filterDecision === "Pending" && s.Manager_Decision) return false;
+
+      // Decision filter:
+      if (filterDecision === "Approved" && s._decision !== "Approved") return false;
+      if (filterDecision === "Rejected" && s._decision !== "Rejected") return false;
+
+      // Pending means decision is blank
+      if (filterDecision === "Pending" && s._decision !== "") return false;
+
       return true;
     });
   }, [submissions, filterMonth, filterKPI, filterDecision]);
+
+  const pendingApprovals = useMemo(() => {
+    if (!data?.userInfo) return [];
+    if (data.userInfo.role !== "Admin") return [];
+    return submissions.filter(s => s._decision === "");
+  }, [data, submissions]);
 
   /* =============================
      LOGIN
@@ -162,12 +177,14 @@ export default function App() {
 
   /* =============================
      ADMIN APPROVAL
+     NOTE: Requires Apps Script to support decision + adjusted_progress
   ============================= */
-  const submitFeedback = async (submission, index) => {
-    const feedback = feedbackDraft[index] || "";
-    if (!feedback.trim()) return alert("Enter feedback");
+  const submitFeedback = async (submission, decision, adjustedProgress) => {
+    const rowId = submission.ROW_ID;
+    const draft = feedbackDraft[rowId] || {};
+    const feedback = draft.feedback || "";
 
-    setSavingIndex(index);
+    setSavingRowId(rowId);
     try {
       await fetch(API_URL, {
         method: "POST",
@@ -177,8 +194,10 @@ export default function App() {
           authKey,
           action: "submit_feedback",
           payload: {
-            row_id: submission.ROW_ID,
+            row_id: rowId,
             kpi_id: submission.KPI_ID,
+            decision, // "Approved" or "Rejected"
+            adjusted_progress: adjustedProgress, // 0-100
             feedback
           }
         })
@@ -186,7 +205,7 @@ export default function App() {
 
       setTimeout(() => fetchData(authKey), 600);
     } finally {
-      setSavingIndex(null);
+      setSavingRowId(null);
     }
   };
 
@@ -195,9 +214,25 @@ export default function App() {
   ============================= */
   if (!authKey) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center" }}>
-        <div style={{ width: 420, padding: 32, border: "1px solid #ddd", borderRadius: 12 }}>
-          <h2>KPI Dashboard Login</h2>
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          background: "#f9fafb"
+        }}
+      >
+        <div
+          style={{
+            width: 420,
+            padding: 32,
+            border: "1px solid #ddd",
+            borderRadius: 12,
+            background: "#fff"
+          }}
+        >
+          <h2 style={{ marginTop: 0 }}>KPI Dashboard Login</h2>
           <input
             type="password"
             placeholder="Enter Auth Key"
@@ -207,10 +242,14 @@ export default function App() {
             disabled={loggingIn}
             style={{ width: "100%", padding: 12, marginBottom: 16 }}
           />
-          <button onClick={handleLogin} disabled={loggingIn} style={{ width: "100%" }}>
+          <button
+            onClick={handleLogin}
+            disabled={loggingIn}
+            style={{ width: "100%", padding: 12, fontWeight: 600 }}
+          >
             {loggingIn ? "Logging in…" : "Log in"}
           </button>
-          {error && <p style={{ color: "red" }}>{error}</p>}
+          {error && <p style={{ color: "red", marginTop: 12 }}>{error}</p>}
         </div>
       </div>
     );
@@ -225,83 +264,94 @@ export default function App() {
   ============================= */
   return (
     <div style={{ padding: 24, maxWidth: 1200 }}>
-      <h2>KPI Dashboard</h2>
+      <h2 style={{ marginTop: 0 }}>KPI Dashboard</h2>
       <p>
         User: <strong>{data.userInfo.name}</strong> ({data.userInfo.role})
       </p>
 
-      <button onClick={() => { localStorage.removeItem("authKey"); window.location.reload(); }}>
+      <button
+        onClick={() => {
+          localStorage.removeItem("authKey");
+          window.location.reload();
+        }}
+      >
         Log out
       </button>
-{/* KPI OVERVIEW */}
-<h3 style={{ marginTop: 32 }}>KPIs</h3>
 
-<div
-  style={{
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-    gap: 16
-  }}
->
-  {data.kpis.map(k => (
-    <div
-      key={k.KPI_ID}
-      style={{
-        border: "1px solid #e5e7eb",
-        borderRadius: 12,
-        padding: 16,
-        background: "#fff"
-      }}
-    >
-      <strong>{k.KPI_Name}</strong>
-      <div style={{ color: "#555", marginBottom: 8 }}>
-        {k.Description}
+      {/* KPI OVERVIEW */}
+      <h3 style={{ marginTop: 32 }}>KPIs</h3>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+          gap: 16
+        }}
+      >
+        {data.kpis.map(k => (
+          <div
+            key={k.KPI_ID}
+            style={{
+              border: "1px solid #e5e7eb",
+              borderRadius: 12,
+              padding: 16,
+              background: "#fff"
+            }}
+          >
+            <strong>{k.KPI_Name}</strong>
+            <div style={{ color: "#555", marginBottom: 8 }}>{k.Description}</div>
+
+            <div style={{ height: 8, background: "#eee", borderRadius: 4 }}>
+              <div
+                style={{
+                  width: `${k.Completion || 0}%`,
+                  height: "100%",
+                  background: (k.Completion || 0) >= 100 ? "#16a34a" : "#2563eb",
+                  borderRadius: 4
+                }}
+              />
+            </div>
+
+            <div style={{ marginTop: 6 }}>Completion: {k.Completion || 0}%</div>
+          </div>
+        ))}
       </div>
 
-      <div style={{ height: 8, background: "#eee", borderRadius: 4 }}>
-        <div
-          style={{
-            width: `${k.Completion || 0}%`,
-            height: "100%",
-            background: k.Completion >= 100 ? "#16a34a" : "#2563eb",
-            borderRadius: 4
-          }}
-        />
-      </div>
-
-      <div style={{ marginTop: 6 }}>
-        Completion: {k.Completion || 0}%
-      </div>
-    </div>
-  ))}
-</div>
       {/* FILTERS */}
       <h3 style={{ marginTop: 30 }}>Submission History</h3>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
         <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)}>
           <option value="">All Months</option>
-          {months.map(m => <option key={m} value={m}>{m}</option>)}
+          {months.map(m => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
         </select>
 
         <select value={filterKPI} onChange={e => setFilterKPI(e.target.value)}>
           <option value="">All KPIs</option>
           {data.kpis.map(k => (
-            <option key={k.KPI_ID} value={k.KPI_ID}>{k.KPI_Name}</option>
+            <option key={k.KPI_ID} value={k.KPI_ID}>
+              {k.KPI_Name}
+            </option>
           ))}
         </select>
 
         <select value={filterDecision} onChange={e => setFilterDecision(e.target.value)}>
           <option value="">All</option>
           <option value="Approved">Approved</option>
+          <option value="Rejected">Rejected</option>
           <option value="Pending">Pending</option>
         </select>
       </div>
 
       {/* HISTORY LIST */}
-      {filteredHistory.map((s, i) => (
-        <div key={i} style={{ borderBottom: "1px solid #ddd", padding: 10 }}>
-          <strong>{s.Timestamp}</strong> | KPI {s.KPI_ID} | {s.Task_Status} | {s.Progress_Percent}%
+      {filteredHistory.map(s => (
+        <div key={s.ROW_ID} style={{ borderBottom: "1px solid #ddd", padding: 10 }}>
+          <strong>{s.Timestamp}</strong> | KPI {s.KPI_ID} | {s.Task_Status} |{" "}
+          {s.Progress_Percent}%
           <div>Decision: {s.Manager_Decision || "Pending"}</div>
           {s.Manager_Feedback && <div>Feedback: {s.Manager_Feedback}</div>}
         </div>
@@ -311,21 +361,76 @@ export default function App() {
       {isAdmin && (
         <>
           <h3 style={{ marginTop: 40 }}>Pending Approvals</h3>
-          {submissions.filter(s => !s.Manager_Decision).map((s, i) => (
-            <div key={i} style={{ border: "1px solid #ccc", padding: 12, marginBottom: 12 }}>
-              <strong>{s.Name}</strong> | KPI {s.KPI_ID}
-              <div>Today: {s.Focus_Today}</div>
-              <textarea
-                placeholder="Manager feedback"
-                value={feedbackDraft[i] || ""}
-                onChange={e => setFeedbackDraft({ ...feedbackDraft, [i]: e.target.value })}
-                style={{ width: "100%", marginTop: 8 }}
-              />
-              <button onClick={() => submitFeedback(s, i)} disabled={savingIndex === i}>
-                Approve
-              </button>
-            </div>
-          ))}
+
+          {pendingApprovals.map(s => {
+            const rowId = s.ROW_ID;
+            const draft = feedbackDraft[rowId] || {};
+            const adjustedVal =
+              draft.adjusted ?? s.Progress_Percent ?? 0;
+
+            return (
+              <div
+                key={rowId}
+                style={{
+                  border: "1px solid #ddd",
+                  padding: 12,
+                  marginBottom: 12,
+                  borderRadius: 6
+                }}
+              >
+                <strong>{s.Name}</strong> | KPI {s.KPI_ID}
+                <div style={{ marginTop: 4 }}>
+                  Submitted Progress: <strong>{s.Progress_Percent}%</strong>
+                </div>
+
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  placeholder="Adjusted progress %"
+                  value={adjustedVal}
+                  onChange={e =>
+                    setFeedbackDraft({
+                      ...feedbackDraft,
+                      [rowId]: { ...draft, adjusted: e.target.value }
+                    })
+                  }
+                  style={{ width: 180, marginTop: 8 }}
+                />
+
+                <textarea
+                  placeholder="Manager feedback"
+                  value={draft.feedback || ""}
+                  onChange={e =>
+                    setFeedbackDraft({
+                      ...feedbackDraft,
+                      [rowId]: { ...draft, feedback: e.target.value }
+                    })
+                  }
+                  style={{ width: "100%", marginTop: 8 }}
+                />
+
+                <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                  <button
+                    disabled={savingRowId === rowId}
+                    onClick={() =>
+                      submitFeedback(s, "Approved", Number(adjustedVal) || 0)
+                    }
+                  >
+                    Approve
+                  </button>
+
+                  <button
+                    disabled={savingRowId === rowId}
+                    onClick={() => submitFeedback(s, "Rejected", 0)}
+                    style={{ background: "#fee2e2" }}
+                  >
+                    Reject
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </>
       )}
 
@@ -335,7 +440,9 @@ export default function App() {
         <select value={selectedKPI} onChange={e => setSelectedKPI(e.target.value)}>
           <option value="">Select KPI</option>
           {data.kpis.map(k => (
-            <option key={k.KPI_ID} value={k.KPI_ID}>{k.KPI_Name}</option>
+            <option key={k.KPI_ID} value={k.KPI_ID}>
+              {k.KPI_Name}
+            </option>
           ))}
         </select>
 
