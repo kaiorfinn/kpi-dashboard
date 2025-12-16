@@ -5,14 +5,17 @@ const API_URL =
 
 export default function App() {
   /* =============================
-   * AUTH & GLOBAL
+   * AUTH
    * =========================== */
-  useEffect(() => {
-    if (authKey) fetchData(authKey);
-  }, [authKey]);
+  const [authKey, setAuthKey] = useState(
+    localStorage.getItem("authKey") || ""
+  );
   const [loginKey, setLoginKey] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
 
+  /* =============================
+   * GLOBAL
+   * =========================== */
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -28,12 +31,6 @@ export default function App() {
   const [focusTomorrow, setFocusTomorrow] = useState("");
 
   /* =============================
-   * ADMIN
-   * =========================== */
-  const [feedbackDraft, setFeedbackDraft] = useState({});
-  const [savingIndex, setSavingIndex] = useState(null);
-
-  /* =============================
    * FETCH DASHBOARD
    * =========================== */
   const fetchData = async key => {
@@ -41,14 +38,16 @@ export default function App() {
     setError("");
 
     try {
-      const res = await fetch(`${API_URL}?authKey=${encodeURIComponent(key)}`);
+      const res = await fetch(
+        `${API_URL}?authKey=${encodeURIComponent(key)}`
+      );
       const json = await res.json();
       if (json.error) throw new Error(json.error);
 
       localStorage.setItem("authKey", key);
       setAuthKey(key);
       setData(json);
-    } catch (e) {
+    } catch {
       setError("Invalid auth key or server error");
       localStorage.removeItem("authKey");
       setAuthKey("");
@@ -69,6 +68,13 @@ export default function App() {
   };
 
   /* =============================
+   * LOAD AFTER LOGIN
+   * =========================== */
+  useEffect(() => {
+    if (authKey) fetchData(authKey);
+  }, [authKey]);
+
+  /* =============================
    * SUBMIT UPDATE
    * =========================== */
   const submitUpdate = async () => {
@@ -85,11 +91,9 @@ export default function App() {
       return;
     }
 
-    const today = focusToday.trim() || "N/A";
-    const block = blockers.trim() || "N/A";
-    const tomorrow = focusTomorrow.trim() || "N/A";
-
-    const kpi = data.kpis.find(k => String(k.KPI_ID) === String(selectedKPI));
+    const kpi = data.kpis.find(
+      k => String(k.KPI_ID) === String(selectedKPI)
+    );
     if (!kpi) return;
 
     setLoading(true);
@@ -106,9 +110,9 @@ export default function App() {
             kpi_frequency: kpi.KPI_Frequency,
             task_status: taskStatus,
             progress_percent: finalProgress,
-            focus_today: today,
-            blockers: block,
-            focus_tomorrow: tomorrow
+            focus_today: focusToday || "N/A",
+            blockers: blockers || "N/A",
+            focus_tomorrow: focusTomorrow || "N/A"
           }
         })
       });
@@ -127,52 +131,31 @@ export default function App() {
   };
 
   /* =============================
-   * ADMIN APPROVAL
-   * =========================== */
-  const submitFeedback = async (submission, index) => {
-    const feedback = feedbackDraft[index] || "";
-    if (!feedback.trim()) {
-      alert("Please enter manager feedback.");
-      return;
-    }
-
-    setSavingIndex(index);
-    try {
-      await fetch(API_URL, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          authKey,
-          action: "submit_feedback",
-          payload: {
-            kpi_id: submission.KPI_ID,
-            feedback
-          }
-        })
-      });
-
-      setTimeout(() => fetchData(authKey), 500);
-    } finally {
-      setSavingIndex(null);
-    }
-  };
-
-  /* =============================
-   * INITIAL LOAD
-   * =========================== */
-  useEffect(() => {
-    if (authKey) fetchData(authKey);
-  }, []);
-
-  /* =============================
    * LOGIN SCREEN
    * =========================== */
   if (!authKey) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f9fafb" }}>
-        <div style={{ width: 420, padding: 32, background: "#fff", borderRadius: 12, boxShadow: "0 10px 25px rgba(0,0,0,0.08)" }}>
-          <h2 style={{ marginBottom: 20, textAlign: "center" }}>KPI Dashboard</h2>
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "#f9fafb"
+        }}
+      >
+        <div
+          style={{
+            width: 420,
+            padding: 32,
+            background: "#fff",
+            borderRadius: 12,
+            boxShadow: "0 10px 25px rgba(0,0,0,0.08)"
+          }}
+        >
+          <h2 style={{ textAlign: "center", marginBottom: 20 }}>
+            KPI Dashboard Login
+          </h2>
 
           <input
             type="password"
@@ -181,7 +164,13 @@ export default function App() {
             onChange={e => setLoginKey(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleLogin()}
             disabled={loggingIn}
-            style={{ width: "100%", padding: 12, marginBottom: 16 }}
+            style={{
+              width: "100%",
+              padding: 12,
+              marginBottom: 16,
+              borderRadius: 8,
+              border: "1px solid #d1d5db"
+            }}
           />
 
           <button
@@ -190,17 +179,22 @@ export default function App() {
             style={{
               width: "100%",
               padding: 12,
-              background: "#2563eb",
-              color: "#fff",
-              border: "none",
               borderRadius: 8,
-              fontWeight: 600
+              border: "none",
+              background: loggingIn ? "#9ca3af" : "#2563eb",
+              color: "#fff",
+              fontWeight: 600,
+              cursor: loggingIn ? "not-allowed" : "pointer"
             }}
           >
             {loggingIn ? "Logging in…" : "Log in"}
           </button>
 
-          {error && <p style={{ color: "red", marginTop: 12 }}>{error}</p>}
+          {error && (
+            <p style={{ color: "#dc2626", marginTop: 12 }}>
+              {error}
+            </p>
+          )}
         </div>
       </div>
     );
@@ -215,7 +209,8 @@ export default function App() {
     <div style={{ padding: 24, maxWidth: 1200 }}>
       <h2>KPI Dashboard</h2>
       <p>
-        User: <strong>{data.userInfo.name}</strong> ({data.userInfo.role})
+        User: <strong>{data.userInfo.name}</strong> (
+        {data.userInfo.role})
       </p>
 
       <button
@@ -227,33 +222,68 @@ export default function App() {
         Log out
       </button>
 
-      {/* KPI CARDS */}
       <h3 style={{ marginTop: 30 }}>KPIs</h3>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 16 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(auto-fit, minmax(300px, 1fr))",
+          gap: 16
+        }}
+      >
         {data.kpis.map(k => (
-          <div key={k.KPI_ID} style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 16 }}>
+          <div
+            key={k.KPI_ID}
+            style={{
+              border: "1px solid #e5e7eb",
+              borderRadius: 12,
+              padding: 16
+            }}
+          >
             <strong>{k.KPI_Name}</strong>
             <div>{k.Description}</div>
             <div>Assigned: {k.Assigned_User}</div>
-            <div style={{ height: 8, background: "#e5e7eb", marginTop: 8 }}>
-              <div style={{ width: `${k.Completion || 0}%`, height: "100%", background: k.Completion >= 100 ? "#16a34a" : "#2563eb" }} />
+            <div
+              style={{
+                height: 8,
+                background: "#e5e7eb",
+                marginTop: 8
+              }}
+            >
+              <div
+                style={{
+                  width: `${k.Completion || 0}%`,
+                  height: "100%",
+                  background:
+                    k.Completion >= 100
+                      ? "#16a34a"
+                      : "#2563eb"
+                }}
+              />
             </div>
             <div>Completion: {k.Completion || 0}%</div>
           </div>
         ))}
       </div>
 
-      {/* SUBMIT UPDATE */}
       <h3 style={{ marginTop: 30 }}>Submit Update</h3>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <select value={selectedKPI} onChange={e => setSelectedKPI(e.target.value)}>
+        <select
+          value={selectedKPI}
+          onChange={e => setSelectedKPI(e.target.value)}
+        >
           <option value="">Select KPI</option>
           {data.kpis.map(k => (
-            <option key={k.KPI_ID} value={k.KPI_ID}>{k.KPI_Name}</option>
+            <option key={k.KPI_ID} value={k.KPI_ID}>
+              {k.KPI_Name}
+            </option>
           ))}
         </select>
 
-        <select value={taskStatus} onChange={e => setTaskStatus(e.target.value)}>
+        <select
+          value={taskStatus}
+          onChange={e => setTaskStatus(e.target.value)}
+        >
           <option>In Progress</option>
           <option>Done</option>
         </select>
@@ -266,9 +296,22 @@ export default function App() {
           onChange={e => setProgressPercent(e.target.value)}
         />
 
-        <textarea placeholder="Today" value={focusToday} onChange={e => setFocusToday(e.target.value)} />
-        <textarea placeholder="Blockers" value={blockers} onChange={e => setBlockers(e.target.value)} />
-        <textarea placeholder="Tomorrow" value={focusTomorrow} onChange={e => setFocusTomorrow(e.target.value)} />
+        <textarea
+          placeholder="Today"
+          value={focusToday}
+          onChange={e => setFocusToday(e.target.value)}
+        />
+        <textarea
+          placeholder="Blockers"
+          value={blockers}
+          onChange={e => setBlockers(e.target.value)}
+        />
+        <textarea
+          placeholder="Tomorrow"
+          value={focusTomorrow}
+          onChange={e => setFocusTomorrow(e.target.value)}
+        />
+
         <button onClick={submitUpdate}>Submit</button>
       </div>
     </div>
