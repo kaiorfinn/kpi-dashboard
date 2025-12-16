@@ -7,7 +7,9 @@ export default function App() {
   /* =============================
    * AUTH & GLOBAL
    * =========================== */
-  const [authKey, setAuthKey] = useState(localStorage.getItem("authKey") || "");
+  useEffect(() => {
+    if (authKey) fetchData(authKey);
+  }, [authKey]);
   const [loginKey, setLoginKey] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
 
