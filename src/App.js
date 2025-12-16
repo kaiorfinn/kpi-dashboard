@@ -61,7 +61,6 @@ export default function App() {
       const res = await fetch(`${API_URL}?authKey=${encodeURIComponent(key)}`);
       const json = await res.json();
       if (json.error) throw new Error(json.error);
-
       localStorage.setItem("authKey", key);
       setAuthKey(key);
       setData(json);
@@ -80,7 +79,7 @@ export default function App() {
   }, [authKey]);
 
   /* =============================
-     DERIVED DATA (SAFE HOOKS)
+     DERIVED DATA
   ============================= */
   const submissions = useMemo(() => {
     if (!data?.submissionHistory) return [];
@@ -127,7 +126,6 @@ export default function App() {
   ============================= */
   const submitUpdate = async () => {
     if (!selectedKPI) return alert("Select KPI");
-
     const finalProgress =
       taskStatus === "Done" ? 100 : Number(progressPercent) || 0;
 
@@ -161,7 +159,6 @@ export default function App() {
       setBlockers("");
       setFocusTomorrow("");
       setTaskStatus("In Progress");
-
       setTimeout(() => fetchData(authKey), 600);
     } finally {
       setLoading(false);
@@ -174,8 +171,8 @@ export default function App() {
   const submitFeedback = async (submission, decision, adjustedProgress) => {
     const rowId = submission.ROW_ID;
     const draft = feedbackDraft[rowId] || {};
-
     setSavingRowId(rowId);
+
     try {
       await fetch(API_URL, {
         method: "POST",
@@ -193,7 +190,6 @@ export default function App() {
           }
         })
       });
-
       setTimeout(() => fetchData(authKey), 600);
     } finally {
       setSavingRowId(null);
@@ -244,7 +240,7 @@ export default function App() {
 
       {/* KPI OVERVIEW */}
       <h3 style={{ marginTop: 32 }}>KPIs</h3>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px,1fr))", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 16 }}>
         {data.kpis.map(k => (
           <div key={k.KPI_ID} style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 16 }}>
             <strong>{k.KPI_Name}</strong>
@@ -259,6 +255,35 @@ export default function App() {
           </div>
         ))}
       </div>
+
+      {/* HISTORY (HORIZONTAL) */}
+      <h3 style={{ marginTop: 40 }}>Submission History</h3>
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead style={{ background: "#f3f4f6" }}>
+          <tr>
+            <th>Time</th>
+            <th>Name</th>
+            <th>KPI</th>
+            <th>Submitted</th>
+            <th>Adjusted</th>
+            <th>Decision</th>
+            <th>Feedback</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredHistory.map(s => (
+            <tr key={s.ROW_ID} style={{ borderBottom: "1px solid #e5e7eb" }}>
+              <td>{s.Timestamp}</td>
+              <td>{s.Name}</td>
+              <td>{s.KPI_ID}</td>
+              <td>{s.Progress_Percent}%</td>
+              <td>{s.Manager_Adjusted_Progress ?? "-"}</td>
+              <td>{s.Manager_Decision || "Pending"}</td>
+              <td>{s.Manager_Feedback || "-"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
 
       {/* ADMIN APPROVALS */}
       {isAdmin && (
@@ -277,22 +302,30 @@ export default function App() {
                   min={0}
                   max={100}
                   value={draft.adjusted ?? s.Progress_Percent}
-                  onChange={e => setFeedbackDraft({
-                    ...feedbackDraft,
-                    [rowId]: { ...draft, adjusted: e.target.value }
-                  })}
+                  onChange={e =>
+                    setFeedbackDraft({
+                      ...feedbackDraft,
+                      [rowId]: { ...draft, adjusted: e.target.value }
+                    })
+                  }
                 />
 
                 <textarea
                   placeholder="Manager feedback"
                   value={draft.feedback || ""}
-                  onChange={e => setFeedbackDraft({
-                    ...feedbackDraft,
-                    [rowId]: { ...draft, feedback: e.target.value }
-                  })}
+                  onChange={e =>
+                    setFeedbackDraft({
+                      ...feedbackDraft,
+                      [rowId]: { ...draft, feedback: e.target.value }
+                    })
+                  }
                 />
 
-                <button onClick={() => submitFeedback(s, "Approved", Number(draft.adjusted ?? s.Progress_Percent))}>
+                <button
+                  onClick={() =>
+                    submitFeedback(s, "Approved", Number(draft.adjusted ?? s.Progress_Percent))
+                  }
+                >
                   Approve
                 </button>
 
@@ -310,16 +343,26 @@ export default function App() {
       <div>
         <select value={selectedKPI} onChange={e => setSelectedKPI(e.target.value)}>
           <option value="">Select KPI</option>
-          {data.kpis.map(k => <option key={k.KPI_ID} value={k.KPI_ID}>{k.KPI_Name}</option>)}
+          {data.kpis.map(k => (
+            <option key={k.KPI_ID} value={k.KPI_ID}>{k.KPI_Name}</option>
+          ))}
         </select>
+
         <select value={taskStatus} onChange={e => setTaskStatus(e.target.value)}>
           <option>In Progress</option>
           <option>Done</option>
         </select>
-        <input type="number" value={progressPercent} onChange={e => setProgressPercent(e.target.value)} />
+
+        <input
+          type="number"
+          value={progressPercent}
+          onChange={e => setProgressPercent(e.target.value)}
+        />
+
         <textarea value={focusToday} onChange={e => setFocusToday(e.target.value)} />
         <textarea value={blockers} onChange={e => setBlockers(e.target.value)} />
         <textarea value={focusTomorrow} onChange={e => setFocusTomorrow(e.target.value)} />
+
         <button onClick={submitUpdate}>Submit</button>
       </div>
     </div>
