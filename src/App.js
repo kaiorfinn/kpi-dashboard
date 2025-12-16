@@ -4,17 +4,25 @@ const API_URL =
   "https://script.google.com/macros/s/AKfycbwutvWRTxac6YzooC2xHx0AHR8V2sDohtyQ7KRSz5IOhpCfZV-MLMKMiW3U00LS5FGT/exec";
 
 export default function App() {
-  /* ================= AUTH ================= */
-  const [authKey, setAuthKey] = useState(localStorage.getItem("authKey") || "");
+  /* =============================
+   * AUTH
+   * =========================== */
+  const [authKey, setAuthKey] = useState(
+    localStorage.getItem("authKey") || ""
+  );
   const [loginKey, setLoginKey] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
 
-  /* ================= GLOBAL ================= */
+  /* =============================
+   * GLOBAL
+   * =========================== */
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  /* ================= FORM ================= */
+  /* =============================
+   * SUBMISSION FORM
+   * =========================== */
   const [selectedKPI, setSelectedKPI] = useState("");
   const [taskStatus, setTaskStatus] = useState("In Progress");
   const [progressPercent, setProgressPercent] = useState("");
@@ -22,12 +30,23 @@ export default function App() {
   const [blockers, setBlockers] = useState("");
   const [focusTomorrow, setFocusTomorrow] = useState("");
 
-  /* ================= FETCH ================= */
+  /* =============================
+   * ADMIN APPROVAL
+   * =========================== */
+  const [adminFeedback, setAdminFeedback] = useState({});
+  const [savingApproval, setSavingApproval] = useState(null);
+
+  /* =============================
+   * FETCH DASHBOARD
+   * =========================== */
   const fetchData = async key => {
     setLoading(true);
     setError("");
+
     try {
-      const res = await fetch(`${API_URL}?authKey=${encodeURIComponent(key)}`);
+      const res = await fetch(
+        `${API_URL}?authKey=${encodeURIComponent(key)}`
+      );
       const json = await res.json();
       if (json.error) throw new Error(json.error);
 
@@ -44,7 +63,9 @@ export default function App() {
     }
   };
 
-  /* ================= LOGIN ================= */
+  /* =============================
+   * LOGIN
+   * =========================== */
   const handleLogin = async () => {
     if (!loginKey.trim()) return;
     setLoggingIn(true);
@@ -52,24 +73,24 @@ export default function App() {
     setLoggingIn(false);
   };
 
+  /* =============================
+   * LOAD AFTER LOGIN
+   * =========================== */
   useEffect(() => {
     if (authKey) fetchData(authKey);
   }, [authKey]);
 
-  /* ================= SUBMIT UPDATE ================= */
+  /* =============================
+   * SUBMIT KPI UPDATE
+   * =========================== */
   const submitUpdate = async () => {
     if (!selectedKPI) {
-      alert("Select a KPI first");
+      alert("Please select a KPI.");
       return;
     }
 
     const finalProgress =
       taskStatus === "Done" ? 100 : Number(progressPercent) || 0;
-
-    if (finalProgress < 0 || finalProgress > 100) {
-      alert("Progress must be 0–100%");
-      return;
-    }
 
     const kpi = data.kpis.find(
       k => String(k.KPI_ID) === String(selectedKPI)
@@ -110,7 +131,37 @@ export default function App() {
     }
   };
 
-  /* ================= LOGIN SCREEN ================= */
+  /* =============================
+   * ADMIN APPROVAL ACTION
+   * =========================== */
+  const submitApproval = async (submission, decision, index) => {
+    setSavingApproval(index);
+    try {
+      await fetch(API_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          authKey,
+          action: "admin_approval",
+          payload: {
+            kpi_id: submission.KPI_ID,
+            user: submission.User,
+            decision,
+            feedback: adminFeedback[index] || ""
+          }
+        })
+      });
+
+      setTimeout(() => fetchData(authKey), 600);
+    } finally {
+      setSavingApproval(null);
+    }
+  };
+
+  /* =============================
+   * LOGIN SCREEN
+   * =========================== */
   if (!authKey) {
     return (
       <div style={{
@@ -118,7 +169,7 @@ export default function App() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#f3f4f6"
+        background: "#f9fafb"
       }}>
         <div style={{
           width: 420,
@@ -135,9 +186,9 @@ export default function App() {
             type="password"
             placeholder="Enter Auth Key"
             value={loginKey}
-            disabled={loggingIn}
             onChange={e => setLoginKey(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleLogin()}
+            disabled={loggingIn}
             style={{
               width: "100%",
               padding: 12,
@@ -163,7 +214,11 @@ export default function App() {
             {loggingIn ? "Logging in…" : "Log in"}
           </button>
 
-          {error && <p style={{ color: "#dc2626", marginTop: 12 }}>{error}</p>}
+          {error && (
+            <p style={{ color: "#dc2626", marginTop: 12 }}>
+              {error}
+            </p>
+          )}
         </div>
       </div>
     );
@@ -171,7 +226,9 @@ export default function App() {
 
   if (loading || !data) return <div style={{ padding: 40 }}>Loading…</div>;
 
-  /* ================= DASHBOARD ================= */
+  /* =============================
+   * DASHBOARD
+   * =========================== */
   return (
     <div style={{ padding: 24, maxWidth: 1200 }}>
       <h2>KPI Dashboard</h2>
@@ -186,6 +243,7 @@ export default function App() {
         Log out
       </button>
 
+      {/* KPI CARDS */}
       <h3 style={{ marginTop: 30 }}>KPIs</h3>
       <div style={{
         display: "grid",
@@ -213,12 +271,62 @@ export default function App() {
         ))}
       </div>
 
-      <h3 style={{ marginTop: 30 }}>Submit Update</h3>
+      {/* ADMIN APPROVAL */}
+      {data.userInfo.role === "Admin" && data.submissions?.length > 0 && (
+        <>
+          <h3 style={{ marginTop: 40 }}>Pending Approvals</h3>
+
+          {data.submissions.map((s, i) => (
+            <div key={i} style={{
+              border: "1px solid #e5e7eb",
+              borderRadius: 12,
+              padding: 16,
+              marginTop: 12,
+              background: "#fafafa"
+            }}>
+              <strong>{s.KPI_Name}</strong>
+              <div>User: {s.User}</div>
+              <div>Progress: {s.Progress}%</div>
+
+              <textarea
+                placeholder="Admin feedback"
+                value={adminFeedback[i] || ""}
+                onChange={e =>
+                  setAdminFeedback({ ...adminFeedback, [i]: e.target.value })
+                }
+                style={{ width: "100%", marginTop: 8 }}
+              />
+
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <button
+                  onClick={() => submitApproval(s, "approve", i)}
+                  disabled={savingApproval === i}
+                  style={{ background: "#16a34a", color: "#fff" }}
+                >
+                  Approve
+                </button>
+                <button
+                  onClick={() => submitApproval(s, "reject", i)}
+                  disabled={savingApproval === i}
+                  style={{ background: "#dc2626", color: "#fff" }}
+                >
+                  Reject
+                </button>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
+      {/* SUBMIT UPDATE */}
+      <h3 style={{ marginTop: 40 }}>Submit Update</h3>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <select value={selectedKPI} onChange={e => setSelectedKPI(e.target.value)}>
           <option value="">Select KPI</option>
           {data.kpis.map(k => (
-            <option key={k.KPI_ID} value={k.KPI_ID}>{k.KPI_Name}</option>
+            <option key={k.KPI_ID} value={k.KPI_ID}>
+              {k.KPI_Name}
+            </option>
           ))}
         </select>
 
