@@ -49,6 +49,7 @@ export default function App() {
   ============================= */
   const fetchData = async key => {
     setLoading(true);
+    setError("");
     try {
       const res = await fetch(`${API_URL}?authKey=${encodeURIComponent(key)}`);
       const json = await res.json();
@@ -71,7 +72,7 @@ export default function App() {
   }, [authKey]);
 
   /* =============================
-     DERIVED
+     DERIVED DATA
   ============================= */
   const submissions = useMemo(() => {
     if (!data?.submissionHistory) return [];
@@ -92,7 +93,7 @@ export default function App() {
   ============================= */
   if (!authKey) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center" }}>
         <div style={{ width: 420, padding: 32, border: "1px solid #ddd" }}>
           <h2>KPI Dashboard Login</h2>
           <input
@@ -149,7 +150,6 @@ export default function App() {
         })
       });
 
-      // reset form
       setSelectedKPI("");
       setTaskStatus("In Progress");
       setProgressPercent("");
@@ -182,8 +182,8 @@ export default function App() {
           payload: {
             row_id: rowId,
             kpi_id: submission.KPI_ID,
-            decision,                 // Approved | Rejected
-            adjusted_progress: adjustedProgress, // 0–100
+            decision,
+            adjusted_progress: adjustedProgress,
             feedback: draft.feedback || ""
           }
         })
@@ -202,6 +202,7 @@ export default function App() {
     <div style={{ padding: 24, maxWidth: 1200 }}>
       <h2>KPI Dashboard</h2>
       <p>User: <strong>{data.userInfo.name}</strong> ({data.userInfo.role})</p>
+
       <button onClick={() => { localStorage.removeItem("authKey"); window.location.reload(); }}>
         Log out
       </button>
@@ -212,7 +213,9 @@ export default function App() {
         {data.kpis.map(k => (
           <div key={k.KPI_ID} style={{ border: "1px solid #ddd", padding: 16 }}>
             <strong>{k.KPI_Name}</strong>
-            <div style={{ fontSize: 13 }}>Owner: {k.Assigned_User}</div>
+            <div style={{ fontSize: 13, color: "#666" }}>
+              Owner: <strong>{k.Assigned_User || "Unassigned"}</strong>
+            </div>
             <div>{k.Description}</div>
             <div style={{ background: "#eee", height: 8, marginTop: 8 }}>
               <div style={{ width: `${k.Completion || 0}%`, height: "100%", background: "#16a34a" }} />
@@ -232,22 +235,38 @@ export default function App() {
               <div key={s.ROW_ID} style={{ border: "1px solid #ddd", padding: 12, marginBottom: 12 }}>
                 <strong>{s.Name}</strong> | KPI {s.KPI_ID}
                 <div>Submitted: {s.Progress_Percent}%</div>
+
                 <input
                   type="number"
+                  min={0}
+                  max={100}
                   value={draft.adjusted ?? s.Progress_Percent}
                   onChange={e =>
-                    setFeedbackDraft({ ...feedbackDraft, [s.ROW_ID]: { ...draft, adjusted: e.target.value } })
+                    setFeedbackDraft({
+                      ...feedbackDraft,
+                      [s.ROW_ID]: { ...draft, adjusted: e.target.value }
+                    })
                   }
                 />
+
                 <textarea
                   placeholder="Manager feedback"
                   value={draft.feedback || ""}
                   onChange={e =>
-                    setFeedbackDraft({ ...feedbackDraft, [s.ROW_ID]: { ...draft, feedback: e.target.value } })
+                    setFeedbackDraft({
+                      ...feedbackDraft,
+                      [s.ROW_ID]: { ...draft, feedback: e.target.value }
+                    })
                   }
                 />
-                <button onClick={() => submitFeedback(s, "Approved", Number(draft.adjusted))}>Approve</button>
-                <button onClick={() => submitFeedback(s, "Rejected", 0)}>Reject</button>
+
+                <button onClick={() => submitFeedback(s, "Approved", Number(draft.adjusted))}>
+                  Approve
+                </button>
+
+                <button onClick={() => submitFeedback(s, "Rejected", 0)}>
+                  Reject
+                </button>
               </div>
             );
           })}
@@ -259,20 +278,33 @@ export default function App() {
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <select value={selectedKPI} onChange={e => setSelectedKPI(e.target.value)}>
           <option value="">Select KPI</option>
-          {data.kpis.map(k => <option key={k.KPI_ID} value={k.KPI_ID}>{k.KPI_Name}</option>)}
+          {data.kpis.map(k => (
+            <option key={k.KPI_ID} value={k.KPI_ID}>
+              {k.KPI_Name}
+            </option>
+          ))}
         </select>
+
         <select value={taskStatus} onChange={e => setTaskStatus(e.target.value)}>
           <option>In Progress</option>
           <option>Done</option>
         </select>
-        <input type="number" placeholder="Progress %" value={progressPercent} onChange={e => setProgressPercent(e.target.value)} />
+
+        <input
+          type="number"
+          placeholder="Progress %"
+          value={progressPercent}
+          onChange={e => setProgressPercent(e.target.value)}
+        />
+
         <textarea placeholder="Today" value={focusToday} onChange={e => setFocusToday(e.target.value)} />
         <textarea placeholder="Blockers" value={blockers} onChange={e => setBlockers(e.target.value)} />
         <textarea placeholder="Tomorrow" value={focusTomorrow} onChange={e => setFocusTomorrow(e.target.value)} />
+
         <button onClick={submitUpdate}>Submit</button>
       </div>
 
-      {/* SUBMISSION HISTORY — ALWAYS LAST */}
+      {/* SUBMISSION HISTORY (ALWAYS LAST) */}
       <h3 style={{ marginTop: 40 }}>Submission History</h3>
       <table width="100%" cellPadding="6">
         <thead>
