@@ -7,34 +7,27 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Setup Node.js (NO cache)
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      # 3. Install dependencies
       - name: Install dependencies
         run: npm install
 
-      # 4. Build React app
       - name: Build React app
         run: CI=false npm run build
 
-      # 5. Deploy to GitHub Pages
-      - name: Deploy to GitHub Pages
+      - name: Deploy to GitHub Pages (FORCE)
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
