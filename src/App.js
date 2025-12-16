@@ -3,35 +3,37 @@ import { useEffect, useMemo, useState } from "react";
 const API_URL =
   "https://script.google.com/macros/s/AKfycbwutvWRTxac6YzooC2xHx0AHR8V2sDohtyQ7KRSz5IOhpCfZV-MLMKMiW3U00LS5FGT/exec";
 
-/* =========================
+/* =============================
    HELPERS
-========================= */
+============================= */
 const getMonthKey = ts => {
-  try {
-    return new Date(ts).toISOString().slice(0, 7); // YYYY-MM
-  } catch {
-    return "";
-  }
+  if (!ts) return "";
+  const d = new Date(ts);
+  if (isNaN(d)) return "";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 };
 
+/* =============================
+   APP
+============================= */
 export default function App() {
-  /* =========================
+  /* =============================
      AUTH
-  ========================= */
+  ============================= */
   const [authKey, setAuthKey] = useState(localStorage.getItem("authKey") || "");
   const [loginKey, setLoginKey] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
 
-  /* =========================
+  /* =============================
      DATA
-  ========================= */
+  ============================= */
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  /* =========================
+  /* =============================
      FORM
-  ========================= */
+  ============================= */
   const [selectedKPI, setSelectedKPI] = useState("");
   const [taskStatus, setTaskStatus] = useState("In Progress");
   const [progressPercent, setProgressPercent] = useState("");
@@ -39,22 +41,22 @@ export default function App() {
   const [blockers, setBlockers] = useState("");
   const [focusTomorrow, setFocusTomorrow] = useState("");
 
-  /* =========================
-     FILTERS (HISTORY)
-  ========================= */
+  /* =============================
+     FILTERS
+  ============================= */
   const [filterMonth, setFilterMonth] = useState("");
   const [filterKPI, setFilterKPI] = useState("");
   const [filterDecision, setFilterDecision] = useState("");
 
-  /* =========================
+  /* =============================
      ADMIN
-  ========================= */
+  ============================= */
   const [feedbackDraft, setFeedbackDraft] = useState({});
   const [savingIndex, setSavingIndex] = useState(null);
 
-  /* =========================
+  /* =============================
      FETCH
-  ========================= */
+  ============================= */
   const fetchData = async key => {
     setLoading(true);
     setError("");
@@ -70,7 +72,7 @@ export default function App() {
       localStorage.removeItem("authKey");
       setAuthKey("");
       setData(null);
-      setError("Invalid auth key or server error");
+      setError("Invalid auth key");
     } finally {
       setLoading(false);
     }
@@ -80,27 +82,9 @@ export default function App() {
     if (authKey) fetchData(authKey);
   }, [authKey]);
 
-  /* =========================
-     DERIVED DATA (HOOKS MUST BE HERE)
-  ========================= */
-  const submissions = data?.submissions || [];
-
-  const months = useMemo(() => {
-    return [...new Set(submissions.map(s => getMonthKey(s.Timestamp)).filter(Boolean))];
-  }, [submissions]);
-
-  const filteredHistory = useMemo(() => {
-    return submissions.filter(s => {
-      if (filterMonth && getMonthKey(s.Timestamp) !== filterMonth) return false;
-      if (filterKPI && String(s.KPI_ID) !== String(filterKPI)) return false;
-      if (filterDecision && (s.Manager_Decision || "Pending") !== filterDecision) return false;
-      return true;
-    });
-  }, [submissions, filterMonth, filterKPI, filterDecision]);
-
-  /* =========================
+  /* =============================
      LOGIN
-  ========================= */
+  ============================= */
   const handleLogin = async () => {
     if (!loginKey.trim()) return;
     setLoggingIn(true);
@@ -108,9 +92,9 @@ export default function App() {
     setLoggingIn(false);
   };
 
-  /* =========================
+  /* =============================
      SUBMIT UPDATE
-  ========================= */
+  ============================= */
   const submitUpdate = async () => {
     if (!selectedKPI) return alert("Select KPI");
 
@@ -154,9 +138,9 @@ export default function App() {
     }
   };
 
-  /* =========================
+  /* =============================
      ADMIN APPROVAL
-  ========================= */
+  ============================= */
   const submitFeedback = async (submission, index) => {
     const feedback = feedbackDraft[index] || "";
     if (!feedback.trim()) return alert("Enter feedback");
@@ -184,9 +168,9 @@ export default function App() {
     }
   };
 
-  /* =========================
-     EARLY RETURNS (SAFE NOW)
-  ========================= */
+  /* =============================
+     LOGIN UI
+  ============================= */
   if (!authKey) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center" }}>
@@ -214,9 +198,29 @@ export default function App() {
 
   const isAdmin = data.userInfo.role === "Admin";
 
-  /* =========================
+  /* =============================
+     HISTORY NORMALIZATION
+  ============================= */
+  const submissions = (data.submissions || []).map(s => ({
+    ...s,
+    _month: getMonthKey(s.Timestamp)
+  }));
+
+  const months = [...new Set(submissions.map(s => s._month).filter(Boolean))];
+
+  const filteredHistory = useMemo(() => {
+    return submissions.filter(s => {
+      if (filterMonth && s._month !== filterMonth) return false;
+      if (filterKPI && String(s.KPI_ID) !== filterKPI) return false;
+      if (filterDecision === "Approved" && s.Manager_Decision !== "Approved") return false;
+      if (filterDecision === "Pending" && s.Manager_Decision) return false;
+      return true;
+    });
+  }, [submissions, filterMonth, filterKPI, filterDecision]);
+
+  /* =============================
      UI
-  ========================= */
+  ============================= */
   return (
     <div style={{ padding: 24, maxWidth: 1200 }}>
       <h2>KPI Dashboard</h2>
@@ -262,7 +266,7 @@ export default function App() {
         </select>
 
         <select value={filterDecision} onChange={e => setFilterDecision(e.target.value)}>
-          <option value="">All</option>
+          <option value="">All Decisions</option>
           <option value="Approved">Approved</option>
           <option value="Pending">Pending</option>
         </select>
