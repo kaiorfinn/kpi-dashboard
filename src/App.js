@@ -7,9 +7,7 @@ export default function App() {
   /* =============================
    * AUTH
    * =========================== */
-  const [authKey, setAuthKey] = useState(
-    localStorage.getItem("authKey") || ""
-  );
+  const [authKey, setAuthKey] = useState(localStorage.getItem("authKey") || "");
   const [loginKey, setLoginKey] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
 
@@ -34,13 +32,15 @@ export default function App() {
    * ADMIN
    * =========================== */
   const [feedbackDraft, setFeedbackDraft] = useState({});
-  const [savingRow, setSavingRow] = useState(null);
+  const [savingIndex, setSavingIndex] = useState(null);
 
   /* =============================
    * FETCH
    * =========================== */
   const fetchData = async key => {
     setLoading(true);
+    setError("");
+
     try {
       const res = await fetch(`${API_URL}?authKey=${encodeURIComponent(key)}`);
       const json = await res.json();
@@ -50,10 +50,10 @@ export default function App() {
       setAuthKey(key);
       setData(json);
     } catch {
+      setError("Invalid auth key");
       localStorage.removeItem("authKey");
       setAuthKey("");
       setData(null);
-      setError("Invalid auth key");
     } finally {
       setLoading(false);
     }
@@ -66,9 +66,94 @@ export default function App() {
   /* =============================
    * LOGIN
    * =========================== */
+  const handleLogin = async () => {
+    if (!loginKey.trim()) return;
+    setLoggingIn(true);
+    await fetchData(loginKey);
+    setLoggingIn(false);
+  };
+
+  /* =============================
+   * SUBMIT UPDATE
+   * =========================== */
+  const submitUpdate = async () => {
+    if (!selectedKPI) return alert("Select KPI");
+
+    const finalProgress =
+      taskStatus === "Done" ? 100 : Number(progressPercent) || 0;
+
+    const kpi = data.kpis.find(k => String(k.KPI_ID) === String(selectedKPI));
+    if (!kpi) return;
+
+    setLoading(true);
+    try {
+      await fetch(API_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          authKey,
+          action: "submit_update",
+          payload: {
+            kpi_id: selectedKPI,
+            kpi_frequency: kpi.KPI_Frequency,
+            task_status: taskStatus,
+            progress_percent: finalProgress,
+            focus_today: focusToday || "N/A",
+            blockers: blockers || "N/A",
+            focus_tomorrow: focusTomorrow || "N/A"
+          }
+        })
+      });
+
+      setSelectedKPI("");
+      setProgressPercent("");
+      setFocusToday("");
+      setBlockers("");
+      setFocusTomorrow("");
+      setTaskStatus("In Progress");
+
+      setTimeout(() => fetchData(authKey), 600);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* =============================
+   * ADMIN APPROVAL
+   * =========================== */
+  const submitFeedback = async (submission, index) => {
+    const feedback = feedbackDraft[index] || "";
+    if (!feedback.trim()) return alert("Enter feedback");
+
+    setSavingIndex(index);
+    try {
+      await fetch(API_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          authKey,
+          action: "submit_feedback",
+          payload: {
+            kpi_id: submission.KPI_ID,
+            feedback
+          }
+        })
+      });
+
+      setTimeout(() => fetchData(authKey), 600);
+    } finally {
+      setSavingIndex(null);
+    }
+  };
+
+  /* =============================
+   * LOGIN SCREEN
+   * =========================== */
   if (!authKey) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center" }}>
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ width: 420, padding: 32, background: "#fff", borderRadius: 12 }}>
           <h2 style={{ textAlign: "center" }}>KPI Dashboard Login</h2>
           <input
@@ -76,13 +161,11 @@ export default function App() {
             placeholder="Enter Auth Key"
             value={loginKey}
             onChange={e => setLoginKey(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && fetchData(loginKey)}
+            onKeyDown={e => e.key === "Enter" && handleLogin()}
+            disabled={loggingIn}
             style={{ width: "100%", padding: 12, marginBottom: 16 }}
           />
-          <button
-            onClick={() => fetchData(loginKey)}
-            style={{ width: "100%", padding: 12 }}
-          >
+          <button onClick={handleLogin} disabled={loggingIn} style={{ width: "100%" }}>
             {loggingIn ? "Logging in…" : "Log in"}
           </button>
           {error && <p style={{ color: "red" }}>{error}</p>}
@@ -91,88 +174,74 @@ export default function App() {
     );
   }
 
-  if (loading || !data) return <div>Loading…</div>;
+  if (loading || !data) return <div style={{ padding: 40 }}>Loading…</div>;
+
+  const isAdmin = data.userInfo.role === "Admin";
 
   /* =============================
-   * ADMIN APPROVAL HANDLER
-   * =========================== */
-  const submitFeedback = async row => {
-    const feedback = feedbackDraft[row.ROW_ID];
-    if (!feedback) return alert("Feedback required");
-
-    setSavingRow(row.ROW_ID);
-
-    await fetch(API_URL, {
-      method: "POST",
-      mode: "no-cors",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        authKey,
-        action: "submit_feedback",
-        payload: {
-          row_id: row.ROW_ID,
-          feedback
-        }
-      })
-    });
-
-    setTimeout(() => fetchData(authKey), 600);
-    setSavingRow(null);
-  };
-
-  /* =============================
-   * UI
+   * DASHBOARD
    * =========================== */
   return (
-    <div style={{ padding: 24 }}>
+    <div style={{ padding: 24, maxWidth: 1200 }}>
       <h2>KPI Dashboard</h2>
-      <p>User: <b>{data.userInfo.name}</b> ({data.userInfo.role})</p>
+      <p>User: <strong>{data.userInfo.name}</strong> ({data.userInfo.role})</p>
 
-      <button onClick={() => {
-        localStorage.removeItem("authKey");
-        window.location.reload();
-      }}>Log out</button>
+      <button onClick={() => { localStorage.removeItem("authKey"); window.location.reload(); }}>
+        Log out
+      </button>
 
       {/* KPI CARDS */}
-      <h3>KPIs</h3>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,300px)", gap: 16 }}>
+      <h3 style={{ marginTop: 30 }}>KPIs</h3>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 16 }}>
         {data.kpis.map(k => (
-          <div key={k.KPI_ID} style={{ border: "1px solid #ddd", padding: 16 }}>
-            <b>{k.KPI_Name}</b>
+          <div key={k.KPI_ID} style={{ border: "1px solid #ddd", borderRadius: 10, padding: 16 }}>
+            <strong>{k.KPI_Name}</strong>
             <div>{k.Description}</div>
+            <div style={{ height: 8, background: "#eee", marginTop: 8 }}>
+              <div style={{
+                width: `${k.Completion || 0}%`,
+                height: "100%",
+                background: k.Completion >= 100 ? "#16a34a" : "#2563eb"
+              }} />
+            </div>
             <div>Completion: {k.Completion || 0}%</div>
           </div>
         ))}
       </div>
 
-      {/* ADMIN APPROVAL */}
-      {data.userInfo.role === "Admin" && (
+      {/* EMPLOYEE HISTORY */}
+      {!isAdmin && data.submissions?.length > 0 && (
+        <>
+          <h3 style={{ marginTop: 40 }}>My Submissions</h3>
+          {data.submissions.map((s, i) => (
+            <div key={i} style={{ borderBottom: "1px solid #ddd", padding: 12 }}>
+              <strong>KPI {s.KPI_ID}</strong> | {s.Task_Status} | {s.Progress_Percent}%
+              <div>Manager: {s.Manager_Decision || "Pending"}</div>
+              {s.Manager_Feedback && <div>Feedback: {s.Manager_Feedback}</div>}
+            </div>
+          ))}
+        </>
+      )}
+
+      {/* ADMIN APPROVALS */}
+      {isAdmin && data.pendingApprovals?.length > 0 && (
         <>
           <h3 style={{ marginTop: 40 }}>Pending Approvals</h3>
-
-          {data.submissionHistory.map(row => (
-            <div key={row.ROW_ID} style={{ borderBottom: "1px solid #ddd", padding: 12 }}>
-              <b>{row.Name}</b> | KPI {row.KPI_ID}
-              <div>Today: {row.Focus_Today}</div>
-
-              {row.Manager_Decision ? (
+          {data.pendingApprovals.map((s, i) => (
+            <div key={i} style={{ border: "1px solid #ccc", padding: 12, marginBottom: 12 }}>
+              <strong>{s.Name}</strong> | KPI {s.KPI_ID}
+              <div>Today: {s.Focus_Today}</div>
+              {s.Manager_Decision ? (
                 <div>✅ Reviewed</div>
               ) : (
                 <>
                   <textarea
                     placeholder="Manager feedback"
-                    value={feedbackDraft[row.ROW_ID] || ""}
-                    onChange={e =>
-                      setFeedbackDraft({
-                        ...feedbackDraft,
-                        [row.ROW_ID]: e.target.value
-                      })
-                    }
+                    value={feedbackDraft[i] || ""}
+                    onChange={e => setFeedbackDraft({ ...feedbackDraft, [i]: e.target.value })}
+                    style={{ width: "100%", marginTop: 8 }}
                   />
-                  <button
-                    disabled={savingRow === row.ROW_ID}
-                    onClick={() => submitFeedback(row)}
-                  >
+                  <button onClick={() => submitFeedback(s, i)} disabled={savingIndex === i}>
                     Approve
                   </button>
                 </>
@@ -181,6 +250,29 @@ export default function App() {
           ))}
         </>
       )}
+
+      {/* SUBMIT UPDATE */}
+      <h3 style={{ marginTop: 40 }}>Submit Update</h3>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <select value={selectedKPI} onChange={e => setSelectedKPI(e.target.value)}>
+          <option value="">Select KPI</option>
+          {data.kpis.map(k => <option key={k.KPI_ID} value={k.KPI_ID}>{k.KPI_Name}</option>)}
+        </select>
+
+        <select value={taskStatus} onChange={e => setTaskStatus(e.target.value)}>
+          <option>In Progress</option>
+          <option>Done</option>
+        </select>
+
+        <input type="number" placeholder="Progress %" value={taskStatus === "Done" ? 100 : progressPercent}
+          onChange={e => setProgressPercent(e.target.value)} />
+
+        <textarea placeholder="Today" value={focusToday} onChange={e => setFocusToday(e.target.value)} />
+        <textarea placeholder="Blockers" value={blockers} onChange={e => setBlockers(e.target.value)} />
+        <textarea placeholder="Tomorrow" value={focusTomorrow} onChange={e => setFocusTomorrow(e.target.value)} />
+
+        <button onClick={submitUpdate}>Submit</button>
+      </div>
     </div>
   );
 }
