@@ -4,13 +4,15 @@ const API_URL =
   "https://script.google.com/macros/s/AKfycbwutvWRTxac6YzooC2xHx0AHR8V2sDohtyQ7KRSz5IOhpCfZV-MLMKMiW3U00LS5FGT/exec";
 
 /* =============================
-   HELPERS
+   UI HELPERS
 ============================= */
-const getMonthKey = ts => {
-  if (!ts) return "";
-  const d = new Date(ts);
-  if (isNaN(d.getTime())) return "";
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+const section = { marginTop: 40 };
+const card = {
+  border: "1px solid #e5e7eb",
+  borderRadius: 10,
+  padding: 16,
+  background: "#fff",
+  boxShadow: "0 1px 2px rgba(0,0,0,.05)"
 };
 
 export default function App() {
@@ -19,7 +21,6 @@ export default function App() {
   ============================= */
   const [authKey, setAuthKey] = useState(localStorage.getItem("authKey") || "");
   const [loginKey, setLoginKey] = useState("");
-  const [loggingIn, setLoggingIn] = useState(false);
 
   /* =============================
      DATA
@@ -49,7 +50,6 @@ export default function App() {
   ============================= */
   const fetchData = async key => {
     setLoading(true);
-    setError("");
     try {
       const res = await fetch(`${API_URL}?authKey=${encodeURIComponent(key)}`);
       const json = await res.json();
@@ -60,7 +60,6 @@ export default function App() {
     } catch {
       localStorage.removeItem("authKey");
       setAuthKey("");
-      setData(null);
       setError("Invalid auth key");
     } finally {
       setLoading(false);
@@ -72,24 +71,23 @@ export default function App() {
   }, [authKey]);
 
   /* =============================
-     DERIVED DATA
+     DERIVED
   ============================= */
   const submissions = useMemo(() => {
     if (!data?.submissionHistory) return [];
     return data.submissionHistory.map(s => ({
       ...s,
-      _month: getMonthKey(s.Timestamp),
-      _decision: s.Manager_Decision || ""
+      decision: s.Manager_Decision || ""
     }));
   }, [data]);
 
   const pendingApprovals = useMemo(() => {
     if (!data || data.userInfo.role !== "Admin") return [];
-    return submissions.filter(s => !s._decision);
+    return submissions.filter(s => !s.decision);
   }, [data, submissions]);
 
   /* =============================
-     LOGIN SCREEN
+     LOGIN
   ============================= */
   if (!authKey) {
     return (
@@ -101,7 +99,6 @@ export default function App() {
             placeholder="Auth Key"
             value={loginKey}
             onChange={e => setLoginKey(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && fetchData(loginKey)}
             style={{ width: "100%", padding: 10 }}
           />
           <button onClick={() => fetchData(loginKey)} style={{ marginTop: 12, width: "100%" }}>
@@ -118,7 +115,7 @@ export default function App() {
   const isAdmin = data.userInfo.role === "Admin";
 
   /* =============================
-     SUBMIT UPDATE
+     ACTIONS
   ============================= */
   const submitUpdate = async () => {
     if (!selectedKPI) return alert("Select KPI");
@@ -129,70 +126,58 @@ export default function App() {
     const kpi = data.kpis.find(k => String(k.KPI_ID) === String(selectedKPI));
     if (!kpi) return;
 
-    setLoading(true);
-    try {
-      await fetch(API_URL, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          authKey,
-          action: "submit_update",
-          payload: {
-            kpi_id: selectedKPI,
-            kpi_frequency: kpi.KPI_Frequency,
-            task_status: taskStatus,
-            progress_percent: finalProgress,
-            focus_today: focusToday || "N/A",
-            blockers: blockers || "N/A",
-            focus_tomorrow: focusTomorrow || "N/A"
-          }
-        })
-      });
+    await fetch(API_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        authKey,
+        action: "submit_update",
+        payload: {
+          kpi_id: selectedKPI,
+          kpi_frequency: kpi.KPI_Frequency,
+          task_status: taskStatus,
+          progress_percent: finalProgress,
+          focus_today: focusToday || "N/A",
+          blockers: blockers || "N/A",
+          focus_tomorrow: focusTomorrow || "N/A"
+        }
+      })
+    });
 
-      setSelectedKPI("");
-      setTaskStatus("In Progress");
-      setProgressPercent("");
-      setFocusToday("");
-      setBlockers("");
-      setFocusTomorrow("");
+    setSelectedKPI("");
+    setProgressPercent("");
+    setFocusToday("");
+    setBlockers("");
+    setFocusTomorrow("");
+    setTaskStatus("In Progress");
 
-      setTimeout(() => fetchData(authKey), 600);
-    } finally {
-      setLoading(false);
-    }
+    setTimeout(() => fetchData(authKey), 600);
   };
 
-  /* =============================
-     ADMIN APPROVAL
-  ============================= */
-  const submitFeedback = async (submission, decision, adjustedProgress) => {
-    const rowId = submission.ROW_ID;
-    const draft = feedbackDraft[rowId] || {};
+  const submitFeedback = async (s, decision, adjusted) => {
+    const draft = feedbackDraft[s.ROW_ID] || {};
+    setSavingRowId(s.ROW_ID);
 
-    setSavingRowId(rowId);
-    try {
-      await fetch(API_URL, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          authKey,
-          action: "submit_feedback",
-          payload: {
-            row_id: rowId,
-            kpi_id: submission.KPI_ID,
-            decision,
-            adjusted_progress: adjustedProgress,
-            feedback: draft.feedback || ""
-          }
-        })
-      });
+    await fetch(API_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        authKey,
+        action: "submit_feedback",
+        payload: {
+          row_id: s.ROW_ID,
+          kpi_id: s.KPI_ID,
+          decision,
+          adjusted_progress: adjusted,
+          feedback: draft.feedback || ""
+        }
+      })
+    });
 
-      setTimeout(() => fetchData(authKey), 600);
-    } finally {
-      setSavingRowId(null);
-    }
+    setTimeout(() => fetchData(authKey), 600);
+    setSavingRowId(null);
   };
 
   /* =============================
@@ -202,136 +187,127 @@ export default function App() {
     <div style={{ padding: 24, maxWidth: 1200 }}>
       <h2>KPI Dashboard</h2>
       <p>User: <strong>{data.userInfo.name}</strong> ({data.userInfo.role})</p>
-
       <button onClick={() => { localStorage.removeItem("authKey"); window.location.reload(); }}>
         Log out
       </button>
 
       {/* KPIs */}
-      <h3 style={{ marginTop: 32 }}>KPIs</h3>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 16 }}>
-        {data.kpis.map(k => (
-          <div key={k.KPI_ID} style={{ border: "1px solid #ddd", padding: 16 }}>
-            <strong>{k.KPI_Name}</strong>
-            <div style={{ fontSize: 13, color: "#666" }}>
-              Owner: <strong>{k.Assigned_User || "Unassigned"}</strong>
+      <div style={section}>
+        <h3>KPIs</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 16 }}>
+          {data.kpis.map(k => (
+            <div key={k.KPI_ID} style={card}>
+              <strong>{k.KPI_Name}</strong>
+              <div style={{ fontSize: 13, color: "#6b7280" }}>
+                Owner: <strong>{k.Assigned_User}</strong>
+              </div>
+              <div style={{ marginTop: 8 }}>{k.Description}</div>
+              <div style={{ height: 8, background: "#e5e7eb", marginTop: 12 }}>
+                <div style={{ width: `${k.Completion || 0}%`, height: "100%", background: "#16a34a" }} />
+              </div>
+              <div>Completion: {k.Completion || 0}%</div>
             </div>
-            <div>{k.Description}</div>
-            <div style={{ background: "#eee", height: 8, marginTop: 8 }}>
-              <div style={{ width: `${k.Completion || 0}%`, height: "100%", background: "#16a34a" }} />
-            </div>
-            <div>Completion: {k.Completion || 0}%</div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
       {/* ADMIN APPROVALS */}
       {isAdmin && (
-        <>
-          <h3 style={{ marginTop: 40 }}>Pending Approvals</h3>
+        <div style={section}>
+          <h3>Pending Approvals</h3>
           {pendingApprovals.map(s => {
             const draft = feedbackDraft[s.ROW_ID] || {};
             return (
-              <div key={s.ROW_ID} style={{ border: "1px solid #ddd", padding: 12, marginBottom: 12 }}>
-                <strong>{s.Name}</strong> | KPI {s.KPI_ID}
+              <div key={s.ROW_ID} style={{ ...card, marginBottom: 16 }}>
+                <strong>{s.Name} | KPI {s.KPI_ID}</strong>
                 <div>Submitted: {s.Progress_Percent}%</div>
 
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={draft.adjusted ?? s.Progress_Percent}
-                  onChange={e =>
-                    setFeedbackDraft({
-                      ...feedbackDraft,
-                      [s.ROW_ID]: { ...draft, adjusted: e.target.value }
-                    })
-                  }
-                />
+                <div style={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: 12, marginTop: 12 }}>
+                  <label>Adjusted Progress</label>
+                  <input
+                    type="number"
+                    value={draft.adjusted ?? s.Progress_Percent}
+                    onChange={e =>
+                      setFeedbackDraft({ ...feedbackDraft, [s.ROW_ID]: { ...draft, adjusted: e.target.value } })
+                    }
+                  />
 
-                <textarea
-                  placeholder="Manager feedback"
-                  value={draft.feedback || ""}
-                  onChange={e =>
-                    setFeedbackDraft({
-                      ...feedbackDraft,
-                      [s.ROW_ID]: { ...draft, feedback: e.target.value }
-                    })
-                  }
-                />
+                  <label>Manager Feedback</label>
+                  <textarea
+                    value={draft.feedback || ""}
+                    onChange={e =>
+                      setFeedbackDraft({ ...feedbackDraft, [s.ROW_ID]: { ...draft, feedback: e.target.value } })
+                    }
+                  />
+                </div>
 
-                <button onClick={() => submitFeedback(s, "Approved", Number(draft.adjusted))}>
-                  Approve
-                </button>
-
-                <button onClick={() => submitFeedback(s, "Rejected", 0)}>
-                  Reject
-                </button>
+                <div style={{ marginTop: 12 }}>
+                  <button onClick={() => submitFeedback(s, "Approved", Number(draft.adjusted))}>
+                    Approve
+                  </button>
+                  <button
+                    style={{ marginLeft: 8, background: "#fee2e2" }}
+                    onClick={() => submitFeedback(s, "Rejected", 0)}
+                  >
+                    Reject
+                  </button>
+                </div>
               </div>
             );
           })}
-        </>
+        </div>
       )}
 
       {/* SUBMIT UPDATE */}
-      <h3 style={{ marginTop: 40 }}>Submit Update</h3>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <select value={selectedKPI} onChange={e => setSelectedKPI(e.target.value)}>
-          <option value="">Select KPI</option>
-          {data.kpis.map(k => (
-            <option key={k.KPI_ID} value={k.KPI_ID}>
-              {k.KPI_Name}
-            </option>
-          ))}
-        </select>
+      <div style={section}>
+        <h3>Submit Update</h3>
+        <div style={{ ...card, display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
+          <select value={selectedKPI} onChange={e => setSelectedKPI(e.target.value)}>
+            <option value="">Select KPI</option>
+            {data.kpis.map(k => <option key={k.KPI_ID} value={k.KPI_ID}>{k.KPI_Name}</option>)}
+          </select>
 
-        <select value={taskStatus} onChange={e => setTaskStatus(e.target.value)}>
-          <option>In Progress</option>
-          <option>Done</option>
-        </select>
+          <select value={taskStatus} onChange={e => setTaskStatus(e.target.value)}>
+            <option>In Progress</option>
+            <option>Done</option>
+          </select>
 
-        <input
-          type="number"
-          placeholder="Progress %"
-          value={progressPercent}
-          onChange={e => setProgressPercent(e.target.value)}
-        />
+          <input placeholder="Progress %" value={progressPercent} onChange={e => setProgressPercent(e.target.value)} />
 
-        <textarea placeholder="Today" value={focusToday} onChange={e => setFocusToday(e.target.value)} />
-        <textarea placeholder="Blockers" value={blockers} onChange={e => setBlockers(e.target.value)} />
-        <textarea placeholder="Tomorrow" value={focusTomorrow} onChange={e => setFocusTomorrow(e.target.value)} />
+          <textarea placeholder="Today" value={focusToday} onChange={e => setFocusToday(e.target.value)} />
+          <textarea placeholder="Blockers" value={blockers} onChange={e => setBlockers(e.target.value)} />
+          <textarea placeholder="Tomorrow" value={focusTomorrow} onChange={e => setFocusTomorrow(e.target.value)} />
 
-        <button onClick={submitUpdate}>Submit</button>
+          <button onClick={submitUpdate}>Submit</button>
+        </div>
       </div>
 
-      {/* SUBMISSION HISTORY (ALWAYS LAST) */}
-      <h3 style={{ marginTop: 40 }}>Submission History</h3>
-      <table width="100%" cellPadding="6">
-        <thead>
-          <tr>
-            <th>Time</th>
-            <th>Name</th>
-            <th>KPI</th>
-            <th>Submitted</th>
-            <th>Adjusted</th>
-            <th>Decision</th>
-            <th>Feedback</th>
-          </tr>
-        </thead>
-        <tbody>
-          {submissions.map(s => (
-            <tr key={s.ROW_ID}>
-              <td>{s.Timestamp}</td>
-              <td>{s.Name}</td>
-              <td>{s.KPI_ID}</td>
-              <td>{s.Progress_Percent}%</td>
-              <td>{s.Manager_Adjusted_Progress || "-"}</td>
-              <td>{s.Manager_Decision || "Pending"}</td>
-              <td>{s.Manager_Feedback || "-"}</td>
+      {/* HISTORY */}
+      <div style={section}>
+        <h3>Submission History</h3>
+        <table width="100%" cellPadding="10" style={{ borderCollapse: "collapse" }}>
+          <thead style={{ background: "#f9fafb" }}>
+            <tr>
+              {["Time","Name","KPI","Submitted","Adjusted","Decision","Feedback"].map(h => (
+                <th key={h} style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>{h}</th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {submissions.map(s => (
+              <tr key={s.ROW_ID}>
+                <td>{s.Timestamp}</td>
+                <td>{s.Name}</td>
+                <td>{s.KPI_ID}</td>
+                <td>{s.Progress_Percent}%</td>
+                <td>{s.Manager_Adjusted_Progress || "-"}</td>
+                <td>{s.Manager_Decision || "Pending"}</td>
+                <td>{s.Manager_Feedback || "-"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
