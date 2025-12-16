@@ -15,21 +15,27 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Checkout source code
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 2. Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18
           cache: npm
 
+      # 3. Install dependencies (clean + deterministic)
       - name: Install dependencies
         run: npm ci
 
-      - name: Build React app (disable CI strict mode)
+      # 4. Build React app
+      # CI=false is REQUIRED for CRA on GitHub Actions
+      - name: Build React app
         run: CI=false npm run build
 
+      # 5. Deploy build/ to gh-pages branch
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
