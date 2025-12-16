@@ -3,9 +3,9 @@ import { useEffect, useMemo, useState } from "react";
 const API_URL =
   "https://script.google.com/macros/s/AKfycbwutvWRTxac6YzooC2xHx0AHR8V2sDohtyQ7KRSz5IOhpCfZV-MLMKMiW3U00LS5FGT/exec";
 
-/* =====================================================
+/* =========================
    HELPERS
-===================================================== */
+========================= */
 const getMonthKey = ts => {
   try {
     return new Date(ts).toISOString().slice(0, 7); // YYYY-MM
@@ -15,23 +15,23 @@ const getMonthKey = ts => {
 };
 
 export default function App() {
-  /* =====================================================
+  /* =========================
      AUTH
-  ===================================================== */
+  ========================= */
   const [authKey, setAuthKey] = useState(localStorage.getItem("authKey") || "");
   const [loginKey, setLoginKey] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
 
-  /* =====================================================
+  /* =========================
      DATA
-  ===================================================== */
+  ========================= */
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  /* =====================================================
+  /* =========================
      FORM
-  ===================================================== */
+  ========================= */
   const [selectedKPI, setSelectedKPI] = useState("");
   const [taskStatus, setTaskStatus] = useState("In Progress");
   const [progressPercent, setProgressPercent] = useState("");
@@ -39,22 +39,22 @@ export default function App() {
   const [blockers, setBlockers] = useState("");
   const [focusTomorrow, setFocusTomorrow] = useState("");
 
-  /* =====================================================
-     FILTERS
-  ===================================================== */
+  /* =========================
+     FILTERS (HISTORY)
+  ========================= */
   const [filterMonth, setFilterMonth] = useState("");
   const [filterKPI, setFilterKPI] = useState("");
   const [filterDecision, setFilterDecision] = useState("");
 
-  /* =====================================================
+  /* =========================
      ADMIN
-  ===================================================== */
+  ========================= */
   const [feedbackDraft, setFeedbackDraft] = useState({});
   const [savingIndex, setSavingIndex] = useState(null);
 
-  /* =====================================================
+  /* =========================
      FETCH
-  ===================================================== */
+  ========================= */
   const fetchData = async key => {
     setLoading(true);
     setError("");
@@ -80,9 +80,27 @@ export default function App() {
     if (authKey) fetchData(authKey);
   }, [authKey]);
 
-  /* =====================================================
+  /* =========================
+     DERIVED DATA (HOOKS MUST BE HERE)
+  ========================= */
+  const submissions = data?.submissions || [];
+
+  const months = useMemo(() => {
+    return [...new Set(submissions.map(s => getMonthKey(s.Timestamp)).filter(Boolean))];
+  }, [submissions]);
+
+  const filteredHistory = useMemo(() => {
+    return submissions.filter(s => {
+      if (filterMonth && getMonthKey(s.Timestamp) !== filterMonth) return false;
+      if (filterKPI && String(s.KPI_ID) !== String(filterKPI)) return false;
+      if (filterDecision && (s.Manager_Decision || "Pending") !== filterDecision) return false;
+      return true;
+    });
+  }, [submissions, filterMonth, filterKPI, filterDecision]);
+
+  /* =========================
      LOGIN
-  ===================================================== */
+  ========================= */
   const handleLogin = async () => {
     if (!loginKey.trim()) return;
     setLoggingIn(true);
@@ -90,9 +108,9 @@ export default function App() {
     setLoggingIn(false);
   };
 
-  /* =====================================================
+  /* =========================
      SUBMIT UPDATE
-  ===================================================== */
+  ========================= */
   const submitUpdate = async () => {
     if (!selectedKPI) return alert("Select KPI");
 
@@ -136,9 +154,9 @@ export default function App() {
     }
   };
 
-  /* =====================================================
+  /* =========================
      ADMIN APPROVAL
-  ===================================================== */
+  ========================= */
   const submitFeedback = async (submission, index) => {
     const feedback = feedbackDraft[index] || "";
     if (!feedback.trim()) return alert("Enter feedback");
@@ -166,15 +184,14 @@ export default function App() {
     }
   };
 
-  /* =====================================================
-     LOGIN UI
-  ===================================================== */
+  /* =========================
+     EARLY RETURNS (SAFE NOW)
+  ========================= */
   if (!authKey) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center", background: "#f9fafb" }}>
-        <div style={{ width: 420, padding: 32, background: "#fff", borderRadius: 12, boxShadow: "0 10px 25px rgba(0,0,0,.08)" }}>
-          <h2 style={{ textAlign: "center", marginBottom: 20 }}>KPI Dashboard</h2>
-
+      <div style={{ minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center" }}>
+        <div style={{ width: 420, padding: 32, border: "1px solid #ddd", borderRadius: 12 }}>
+          <h2 style={{ textAlign: "center" }}>KPI Dashboard</h2>
           <input
             type="password"
             placeholder="Enter Auth Key"
@@ -184,16 +201,10 @@ export default function App() {
             disabled={loggingIn}
             style={{ width: "100%", padding: 12, marginBottom: 16 }}
           />
-
-          <button
-            onClick={handleLogin}
-            disabled={loggingIn}
-            style={{ width: "100%", padding: 12, fontWeight: 600 }}
-          >
+          <button onClick={handleLogin} disabled={loggingIn} style={{ width: "100%" }}>
             {loggingIn ? "Logging in…" : "Log in"}
           </button>
-
-          {error && <p style={{ color: "red", marginTop: 12 }}>{error}</p>}
+          {error && <p style={{ color: "red" }}>{error}</p>}
         </div>
       </div>
     );
@@ -203,24 +214,9 @@ export default function App() {
 
   const isAdmin = data.userInfo.role === "Admin";
 
-  /* =====================================================
-     HISTORY + FILTERING
-  ===================================================== */
-  const submissions = data.submissions || [];
-  const months = [...new Set(submissions.map(s => getMonthKey(s.Timestamp)))];
-
-  const filteredHistory = useMemo(() => {
-    return submissions.filter(s => {
-      if (filterMonth && getMonthKey(s.Timestamp) !== filterMonth) return false;
-      if (filterKPI && String(s.KPI_ID) !== filterKPI) return false;
-      if (filterDecision && s.Manager_Decision !== filterDecision) return false;
-      return true;
-    });
-  }, [submissions, filterMonth, filterKPI, filterDecision]);
-
-  /* =====================================================
+  /* =========================
      UI
-  ===================================================== */
+  ========================= */
   return (
     <div style={{ padding: 24, maxWidth: 1200 }}>
       <h2>KPI Dashboard</h2>
@@ -260,13 +256,15 @@ export default function App() {
 
         <select value={filterKPI} onChange={e => setFilterKPI(e.target.value)}>
           <option value="">All KPIs</option>
-          {data.kpis.map(k => <option key={k.KPI_ID} value={k.KPI_ID}>{k.KPI_Name}</option>)}
+          {data.kpis.map(k => (
+            <option key={k.KPI_ID} value={k.KPI_ID}>{k.KPI_Name}</option>
+          ))}
         </select>
 
         <select value={filterDecision} onChange={e => setFilterDecision(e.target.value)}>
-          <option value="">All Decisions</option>
+          <option value="">All</option>
           <option value="Approved">Approved</option>
-          <option value="">Pending</option>
+          <option value="Pending">Pending</option>
         </select>
       </div>
 
@@ -305,7 +303,9 @@ export default function App() {
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <select value={selectedKPI} onChange={e => setSelectedKPI(e.target.value)}>
           <option value="">Select KPI</option>
-          {data.kpis.map(k => <option key={k.KPI_ID} value={k.KPI_ID}>{k.KPI_Name}</option>)}
+          {data.kpis.map(k => (
+            <option key={k.KPI_ID} value={k.KPI_ID}>{k.KPI_Name}</option>
+          ))}
         </select>
 
         <select value={taskStatus} onChange={e => setTaskStatus(e.target.value)}>
