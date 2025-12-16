@@ -7,9 +7,7 @@ export default function App() {
   /* =============================
    * AUTH
    * =========================== */
-  const [authKey, setAuthKey] = useState(
-    localStorage.getItem("authKey") || ""
-  );
+  const [authKey, setAuthKey] = useState(localStorage.getItem("authKey") || "");
   const [loginKey, setLoginKey] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
 
@@ -31,10 +29,10 @@ export default function App() {
   const [focusTomorrow, setFocusTomorrow] = useState("");
 
   /* =============================
-   * ADMIN APPROVAL
+   * ADMIN
    * =========================== */
-  const [adminFeedback, setAdminFeedback] = useState({});
-  const [savingApproval, setSavingApproval] = useState(null);
+  const [feedbackDraft, setFeedbackDraft] = useState({});
+  const [savingRow, setSavingRow] = useState(null);
 
   /* =============================
    * FETCH DASHBOARD
@@ -42,11 +40,8 @@ export default function App() {
   const fetchData = async key => {
     setLoading(true);
     setError("");
-
     try {
-      const res = await fetch(
-        `${API_URL}?authKey=${encodeURIComponent(key)}`
-      );
+      const res = await fetch(`${API_URL}?authKey=${encodeURIComponent(key)}`);
       const json = await res.json();
       if (json.error) throw new Error(json.error);
 
@@ -63,6 +58,10 @@ export default function App() {
     }
   };
 
+  useEffect(() => {
+    if (authKey) fetchData(authKey);
+  }, [authKey]);
+
   /* =============================
    * LOGIN
    * =========================== */
@@ -74,27 +73,15 @@ export default function App() {
   };
 
   /* =============================
-   * LOAD AFTER LOGIN
-   * =========================== */
-  useEffect(() => {
-    if (authKey) fetchData(authKey);
-  }, [authKey]);
-
-  /* =============================
-   * SUBMIT KPI UPDATE
+   * SUBMIT UPDATE (EMPLOYEE)
    * =========================== */
   const submitUpdate = async () => {
-    if (!selectedKPI) {
-      alert("Please select a KPI.");
-      return;
-    }
+    if (!selectedKPI) return alert("Select KPI");
 
     const finalProgress =
       taskStatus === "Done" ? 100 : Number(progressPercent) || 0;
 
-    const kpi = data.kpis.find(
-      k => String(k.KPI_ID) === String(selectedKPI)
-    );
+    const kpi = data.kpis.find(k => String(k.KPI_ID) === String(selectedKPI));
     if (!kpi) return;
 
     setLoading(true);
@@ -117,14 +104,6 @@ export default function App() {
           }
         })
       });
-
-      setSelectedKPI("");
-      setTaskStatus("In Progress");
-      setProgressPercent("");
-      setFocusToday("");
-      setBlockers("");
-      setFocusTomorrow("");
-
       setTimeout(() => fetchData(authKey), 600);
     } finally {
       setLoading(false);
@@ -132,10 +111,12 @@ export default function App() {
   };
 
   /* =============================
-   * ADMIN APPROVAL ACTION
+   * ADMIN APPROVAL
    * =========================== */
-  const submitApproval = async (submission, decision, index) => {
-    setSavingApproval(index);
+  const submitApproval = async (row, decision) => {
+    const feedback = feedbackDraft[row.ROW_ID] || "";
+    setSavingRow(row.ROW_ID);
+
     try {
       await fetch(API_URL, {
         method: "POST",
@@ -143,19 +124,17 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           authKey,
-          action: "admin_approval",
+          action: "submit_feedback",
           payload: {
-            kpi_id: submission.KPI_ID,
-            user: submission.User,
+            row_id: row.ROW_ID,
             decision,
-            feedback: adminFeedback[index] || ""
+            feedback
           }
         })
       });
-
       setTimeout(() => fetchData(authKey), 600);
     } finally {
-      setSavingApproval(null);
+      setSavingRow(null);
     }
   };
 
@@ -164,191 +143,80 @@ export default function App() {
    * =========================== */
   if (!authKey) {
     return (
-      <div style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "#f9fafb"
-      }}>
-        <div style={{
-          width: 420,
-          padding: 32,
-          background: "#fff",
-          borderRadius: 12,
-          boxShadow: "0 10px 25px rgba(0,0,0,0.08)"
-        }}>
-          <h2 style={{ textAlign: "center", marginBottom: 20 }}>
-            KPI Dashboard Login
-          </h2>
-
+      <div style={{ minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center" }}>
+        <div style={{ width: 420, padding: 32, border: "1px solid #ddd", borderRadius: 12 }}>
+          <h2 style={{ textAlign: "center" }}>KPI Dashboard Login</h2>
           <input
             type="password"
             placeholder="Enter Auth Key"
             value={loginKey}
             onChange={e => setLoginKey(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleLogin()}
-            disabled={loggingIn}
-            style={{
-              width: "100%",
-              padding: 12,
-              marginBottom: 16,
-              borderRadius: 8,
-              border: "1px solid #d1d5db"
-            }}
+            style={{ width: "100%", padding: 12, marginBottom: 12 }}
           />
-
-          <button
-            onClick={handleLogin}
-            disabled={loggingIn}
-            style={{
-              width: "100%",
-              padding: 12,
-              borderRadius: 8,
-              border: "none",
-              background: loggingIn ? "#9ca3af" : "#2563eb",
-              color: "#fff",
-              fontWeight: 600
-            }}
-          >
+          <button onClick={handleLogin} style={{ width: "100%", padding: 12 }}>
             {loggingIn ? "Logging in…" : "Log in"}
           </button>
-
-          {error && (
-            <p style={{ color: "#dc2626", marginTop: 12 }}>
-              {error}
-            </p>
-          )}
+          {error && <p style={{ color: "red" }}>{error}</p>}
         </div>
       </div>
     );
   }
 
-  if (loading || !data) return <div style={{ padding: 40 }}>Loading…</div>;
+  if (loading || !data) return <div>Loading…</div>;
 
   /* =============================
    * DASHBOARD
    * =========================== */
   return (
-    <div style={{ padding: 24, maxWidth: 1200 }}>
+    <div style={{ padding: 24 }}>
       <h2>KPI Dashboard</h2>
-      <p>
-        User: <strong>{data.userInfo.name}</strong> ({data.userInfo.role})
-      </p>
+      <p>User: <b>{data.userInfo.name}</b> ({data.userInfo.role})</p>
 
       <button onClick={() => {
         localStorage.removeItem("authKey");
         window.location.reload();
-      }}>
-        Log out
-      </button>
+      }}>Log out</button>
 
       {/* KPI CARDS */}
-      <h3 style={{ marginTop: 30 }}>KPIs</h3>
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))",
-        gap: 16
-      }}>
-        {data.kpis.map(k => (
-          <div key={k.KPI_ID} style={{
-            border: "1px solid #e5e7eb",
-            borderRadius: 12,
-            padding: 16
-          }}>
-            <strong>{k.KPI_Name}</strong>
-            <div>{k.Description}</div>
-            <div>Assigned: {k.Assigned_User}</div>
-            <div style={{ height: 8, background: "#e5e7eb", marginTop: 8 }}>
-              <div style={{
-                width: `${k.Completion || 0}%`,
-                height: "100%",
-                background: k.Completion >= 100 ? "#16a34a" : "#2563eb"
-              }} />
-            </div>
-            <div>Completion: {k.Completion || 0}%</div>
-          </div>
-        ))}
-      </div>
-
-      {/* ADMIN APPROVAL */}
-      {data.userInfo.role === "Admin" && data.submissions?.length > 0 && (
-        <>
-          <h3 style={{ marginTop: 40 }}>Pending Approvals</h3>
-
-          {data.submissions.map((s, i) => (
-            <div key={i} style={{
-              border: "1px solid #e5e7eb",
-              borderRadius: 12,
-              padding: 16,
-              marginTop: 12,
-              background: "#fafafa"
-            }}>
-              <strong>{s.KPI_Name}</strong>
-              <div>User: {s.User}</div>
-              <div>Progress: {s.Progress}%</div>
-
-              <textarea
-                placeholder="Admin feedback"
-                value={adminFeedback[i] || ""}
-                onChange={e =>
-                  setAdminFeedback({ ...adminFeedback, [i]: e.target.value })
-                }
-                style={{ width: "100%", marginTop: 8 }}
-              />
-
-              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                <button
-                  onClick={() => submitApproval(s, "approve", i)}
-                  disabled={savingApproval === i}
-                  style={{ background: "#16a34a", color: "#fff" }}
-                >
-                  Approve
-                </button>
-                <button
-                  onClick={() => submitApproval(s, "reject", i)}
-                  disabled={savingApproval === i}
-                  style={{ background: "#dc2626", color: "#fff" }}
-                >
-                  Reject
-                </button>
-              </div>
-            </div>
-          ))}
-        </>
-      )}
+      <h3>KPIs</h3>
+      {data.kpis.map(k => (
+        <div key={k.KPI_ID}>
+          <b>{k.KPI_Name}</b> – {k.Completion || 0}%
+        </div>
+      ))}
 
       {/* SUBMIT UPDATE */}
-      <h3 style={{ marginTop: 40 }}>Submit Update</h3>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <select value={selectedKPI} onChange={e => setSelectedKPI(e.target.value)}>
-          <option value="">Select KPI</option>
-          {data.kpis.map(k => (
-            <option key={k.KPI_ID} value={k.KPI_ID}>
-              {k.KPI_Name}
-            </option>
-          ))}
-        </select>
+      <h3>Submit Update</h3>
+      <select onChange={e => setSelectedKPI(e.target.value)}>
+        <option value="">Select KPI</option>
+        {data.kpis.map(k => <option key={k.KPI_ID} value={k.KPI_ID}>{k.KPI_Name}</option>)}
+      </select>
+      <button onClick={submitUpdate}>Submit</button>
 
-        <select value={taskStatus} onChange={e => setTaskStatus(e.target.value)}>
-          <option>In Progress</option>
-          <option>Done</option>
-        </select>
-
-        <input
-          type="number"
-          placeholder="Progress %"
-          value={taskStatus === "Done" ? 100 : progressPercent}
-          disabled={taskStatus === "Done"}
-          onChange={e => setProgressPercent(e.target.value)}
-        />
-
-        <textarea placeholder="Today" value={focusToday} onChange={e => setFocusToday(e.target.value)} />
-        <textarea placeholder="Blockers" value={blockers} onChange={e => setBlockers(e.target.value)} />
-        <textarea placeholder="Tomorrow" value={focusTomorrow} onChange={e => setFocusTomorrow(e.target.value)} />
-
-        <button onClick={submitUpdate}>Submit</button>
-      </div>
+      {/* ADMIN APPROVAL */}
+      {data.userInfo.role === "Admin" && (
+        <>
+          <h3>Admin Approvals</h3>
+          {data.submissionHistory
+            .filter(r => !r.Manager_Decision)
+            .map(r => (
+              <div key={r.ROW_ID} style={{ border: "1px solid #ddd", padding: 12, marginBottom: 8 }}>
+                <div><b>{r.Name}</b> – KPI {r.KPI_ID}</div>
+                <div>Today: {r.Focus_Today}</div>
+                <textarea
+                  placeholder="Manager feedback"
+                  onChange={e =>
+                    setFeedbackDraft({ ...feedbackDraft, [r.ROW_ID]: e.target.value })
+                  }
+                />
+                <br />
+                <button disabled={savingRow === r.ROW_ID} onClick={() => submitApproval(r, "Approved")}>Approve</button>
+                <button disabled={savingRow === r.ROW_ID} onClick={() => submitApproval(r, "Rejected")}>Reject</button>
+              </div>
+            ))}
+        </>
+      )}
     </div>
   );
 }
