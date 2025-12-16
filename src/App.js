@@ -69,7 +69,7 @@ export default function App() {
       localStorage.removeItem("authKey");
       setAuthKey("");
       setData(null);
-      setError("Invalid auth key");
+      setError("Invalid auth key or server error");
     } finally {
       setLoading(false);
     }
@@ -80,11 +80,11 @@ export default function App() {
   }, [authKey]);
 
   /* =============================
-     DERIVED DATA (HOOKS MUST BE HERE)
+     DERIVED DATA (SAFE HOOKS)
   ============================= */
   const submissions = useMemo(() => {
-    if (!data?.submissions) return [];
-    return data.submissions.map(s => ({
+    if (!data?.submissionHistory) return [];
+    return data.submissionHistory.map(s => ({
       ...s,
       _month: getMonthKey(s.Timestamp)
     }));
@@ -97,7 +97,7 @@ export default function App() {
   const filteredHistory = useMemo(() => {
     return submissions.filter(s => {
       if (filterMonth && s._month !== filterMonth) return false;
-      if (filterKPI && String(s.KPI_ID) !== filterKPI) return false;
+      if (filterKPI && String(s.KPI_ID) !== String(filterKPI)) return false;
       if (filterDecision === "Approved" && s.Manager_Decision !== "Approved") return false;
       if (filterDecision === "Pending" && s.Manager_Decision) return false;
       return true;
@@ -161,13 +161,43 @@ export default function App() {
   };
 
   /* =============================
-     EARLY RETURNS (SAFE NOW)
+     ADMIN APPROVAL
+  ============================= */
+  const submitFeedback = async (submission, index) => {
+    const feedback = feedbackDraft[index] || "";
+    if (!feedback.trim()) return alert("Enter feedback");
+
+    setSavingIndex(index);
+    try {
+      await fetch(API_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          authKey,
+          action: "submit_feedback",
+          payload: {
+            row_id: submission.ROW_ID,
+            kpi_id: submission.KPI_ID,
+            feedback
+          }
+        })
+      });
+
+      setTimeout(() => fetchData(authKey), 600);
+    } finally {
+      setSavingIndex(null);
+    }
+  };
+
+  /* =============================
+     EARLY RETURNS (SAFE)
   ============================= */
   if (!authKey) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center" }}>
         <div style={{ width: 420, padding: 32, border: "1px solid #ddd", borderRadius: 12 }}>
-          <h2>KPI Dashboard</h2>
+          <h2>KPI Dashboard Login</h2>
           <input
             type="password"
             placeholder="Enter Auth Key"
@@ -196,13 +226,16 @@ export default function App() {
   return (
     <div style={{ padding: 24, maxWidth: 1200 }}>
       <h2>KPI Dashboard</h2>
-      <p>User: <strong>{data.userInfo.name}</strong> ({data.userInfo.role})</p>
+      <p>
+        User: <strong>{data.userInfo.name}</strong> ({data.userInfo.role})
+      </p>
 
       <button onClick={() => { localStorage.removeItem("authKey"); window.location.reload(); }}>
         Log out
       </button>
 
-      <h3 style={{ marginTop: 40 }}>Submission History</h3>
+      {/* FILTERS */}
+      <h3 style={{ marginTop: 30 }}>Submission History</h3>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
         <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)}>
@@ -224,12 +257,65 @@ export default function App() {
         </select>
       </div>
 
+      {/* HISTORY LIST */}
       {filteredHistory.map((s, i) => (
         <div key={i} style={{ borderBottom: "1px solid #ddd", padding: 10 }}>
           <strong>{s.Timestamp}</strong> | KPI {s.KPI_ID} | {s.Task_Status} | {s.Progress_Percent}%
           <div>Decision: {s.Manager_Decision || "Pending"}</div>
+          {s.Manager_Feedback && <div>Feedback: {s.Manager_Feedback}</div>}
         </div>
       ))}
+
+      {/* ADMIN APPROVALS */}
+      {isAdmin && (
+        <>
+          <h3 style={{ marginTop: 40 }}>Pending Approvals</h3>
+          {submissions.filter(s => !s.Manager_Decision).map((s, i) => (
+            <div key={i} style={{ border: "1px solid #ccc", padding: 12, marginBottom: 12 }}>
+              <strong>{s.Name}</strong> | KPI {s.KPI_ID}
+              <div>Today: {s.Focus_Today}</div>
+              <textarea
+                placeholder="Manager feedback"
+                value={feedbackDraft[i] || ""}
+                onChange={e => setFeedbackDraft({ ...feedbackDraft, [i]: e.target.value })}
+                style={{ width: "100%", marginTop: 8 }}
+              />
+              <button onClick={() => submitFeedback(s, i)} disabled={savingIndex === i}>
+                Approve
+              </button>
+            </div>
+          ))}
+        </>
+      )}
+
+      {/* SUBMIT */}
+      <h3 style={{ marginTop: 40 }}>Submit Update</h3>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <select value={selectedKPI} onChange={e => setSelectedKPI(e.target.value)}>
+          <option value="">Select KPI</option>
+          {data.kpis.map(k => (
+            <option key={k.KPI_ID} value={k.KPI_ID}>{k.KPI_Name}</option>
+          ))}
+        </select>
+
+        <select value={taskStatus} onChange={e => setTaskStatus(e.target.value)}>
+          <option>In Progress</option>
+          <option>Done</option>
+        </select>
+
+        <input
+          type="number"
+          placeholder="Progress %"
+          value={taskStatus === "Done" ? 100 : progressPercent}
+          onChange={e => setProgressPercent(e.target.value)}
+        />
+
+        <textarea placeholder="Today" value={focusToday} onChange={e => setFocusToday(e.target.value)} />
+        <textarea placeholder="Blockers" value={blockers} onChange={e => setBlockers(e.target.value)} />
+        <textarea placeholder="Tomorrow" value={focusTomorrow} onChange={e => setFocusTomorrow(e.target.value)} />
+
+        <button onClick={submitUpdate}>Submit</button>
+      </div>
     </div>
   );
 }
