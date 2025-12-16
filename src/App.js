@@ -1,26 +1,37 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const API_URL =
   "https://script.google.com/macros/s/AKfycbwutvWRTxac6YzooC2xHx0AHR8V2sDohtyQ7KRSz5IOhpCfZV-MLMKMiW3U00LS5FGT/exec";
 
+/* =====================================================
+   HELPERS
+===================================================== */
+const getMonthKey = ts => {
+  try {
+    return new Date(ts).toISOString().slice(0, 7); // YYYY-MM
+  } catch {
+    return "";
+  }
+};
+
 export default function App() {
-  /* =============================
-   * AUTH
-   * =========================== */
+  /* =====================================================
+     AUTH
+  ===================================================== */
   const [authKey, setAuthKey] = useState(localStorage.getItem("authKey") || "");
   const [loginKey, setLoginKey] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
 
-  /* =============================
-   * DATA
-   * =========================== */
+  /* =====================================================
+     DATA
+  ===================================================== */
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  /* =============================
-   * FORM
-   * =========================== */
+  /* =====================================================
+     FORM
+  ===================================================== */
   const [selectedKPI, setSelectedKPI] = useState("");
   const [taskStatus, setTaskStatus] = useState("In Progress");
   const [progressPercent, setProgressPercent] = useState("");
@@ -28,19 +39,25 @@ export default function App() {
   const [blockers, setBlockers] = useState("");
   const [focusTomorrow, setFocusTomorrow] = useState("");
 
-  /* =============================
-   * ADMIN
-   * =========================== */
+  /* =====================================================
+     FILTERS
+  ===================================================== */
+  const [filterMonth, setFilterMonth] = useState("");
+  const [filterKPI, setFilterKPI] = useState("");
+  const [filterDecision, setFilterDecision] = useState("");
+
+  /* =====================================================
+     ADMIN
+  ===================================================== */
   const [feedbackDraft, setFeedbackDraft] = useState({});
   const [savingIndex, setSavingIndex] = useState(null);
 
-  /* =============================
-   * FETCH
-   * =========================== */
+  /* =====================================================
+     FETCH
+  ===================================================== */
   const fetchData = async key => {
     setLoading(true);
     setError("");
-
     try {
       const res = await fetch(`${API_URL}?authKey=${encodeURIComponent(key)}`);
       const json = await res.json();
@@ -50,10 +67,10 @@ export default function App() {
       setAuthKey(key);
       setData(json);
     } catch {
-      setError("Invalid auth key");
       localStorage.removeItem("authKey");
       setAuthKey("");
       setData(null);
+      setError("Invalid auth key or server error");
     } finally {
       setLoading(false);
     }
@@ -63,9 +80,9 @@ export default function App() {
     if (authKey) fetchData(authKey);
   }, [authKey]);
 
-  /* =============================
-   * LOGIN
-   * =========================== */
+  /* =====================================================
+     LOGIN
+  ===================================================== */
   const handleLogin = async () => {
     if (!loginKey.trim()) return;
     setLoggingIn(true);
@@ -73,9 +90,9 @@ export default function App() {
     setLoggingIn(false);
   };
 
-  /* =============================
-   * SUBMIT UPDATE
-   * =========================== */
+  /* =====================================================
+     SUBMIT UPDATE
+  ===================================================== */
   const submitUpdate = async () => {
     if (!selectedKPI) return alert("Select KPI");
 
@@ -119,9 +136,9 @@ export default function App() {
     }
   };
 
-  /* =============================
-   * ADMIN APPROVAL
-   * =========================== */
+  /* =====================================================
+     ADMIN APPROVAL
+  ===================================================== */
   const submitFeedback = async (submission, index) => {
     const feedback = feedbackDraft[index] || "";
     if (!feedback.trim()) return alert("Enter feedback");
@@ -136,6 +153,7 @@ export default function App() {
           authKey,
           action: "submit_feedback",
           payload: {
+            row_id: submission.ROW_ID,
             kpi_id: submission.KPI_ID,
             feedback
           }
@@ -148,14 +166,15 @@ export default function App() {
     }
   };
 
-  /* =============================
-   * LOGIN SCREEN
-   * =========================== */
+  /* =====================================================
+     LOGIN UI
+  ===================================================== */
   if (!authKey) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ width: 420, padding: 32, background: "#fff", borderRadius: 12 }}>
-          <h2 style={{ textAlign: "center" }}>KPI Dashboard Login</h2>
+      <div style={{ minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center", background: "#f9fafb" }}>
+        <div style={{ width: 420, padding: 32, background: "#fff", borderRadius: 12, boxShadow: "0 10px 25px rgba(0,0,0,.08)" }}>
+          <h2 style={{ textAlign: "center", marginBottom: 20 }}>KPI Dashboard</h2>
+
           <input
             type="password"
             placeholder="Enter Auth Key"
@@ -165,10 +184,16 @@ export default function App() {
             disabled={loggingIn}
             style={{ width: "100%", padding: 12, marginBottom: 16 }}
           />
-          <button onClick={handleLogin} disabled={loggingIn} style={{ width: "100%" }}>
+
+          <button
+            onClick={handleLogin}
+            disabled={loggingIn}
+            style={{ width: "100%", padding: 12, fontWeight: 600 }}
+          >
             {loggingIn ? "Logging in…" : "Log in"}
           </button>
-          {error && <p style={{ color: "red" }}>{error}</p>}
+
+          {error && <p style={{ color: "red", marginTop: 12 }}>{error}</p>}
         </div>
       </div>
     );
@@ -178,9 +203,24 @@ export default function App() {
 
   const isAdmin = data.userInfo.role === "Admin";
 
-  /* =============================
-   * DASHBOARD
-   * =========================== */
+  /* =====================================================
+     HISTORY + FILTERING
+  ===================================================== */
+  const submissions = data.submissions || [];
+  const months = [...new Set(submissions.map(s => getMonthKey(s.Timestamp)))];
+
+  const filteredHistory = useMemo(() => {
+    return submissions.filter(s => {
+      if (filterMonth && getMonthKey(s.Timestamp) !== filterMonth) return false;
+      if (filterKPI && String(s.KPI_ID) !== filterKPI) return false;
+      if (filterDecision && s.Manager_Decision !== filterDecision) return false;
+      return true;
+    });
+  }, [submissions, filterMonth, filterKPI, filterDecision]);
+
+  /* =====================================================
+     UI
+  ===================================================== */
   return (
     <div style={{ padding: 24, maxWidth: 1200 }}>
       <h2>KPI Dashboard</h2>
@@ -209,19 +249,34 @@ export default function App() {
         ))}
       </div>
 
-      {/* EMPLOYEE HISTORY */}
-      {!isAdmin && data.submissions?.length > 0 && (
-        <>
-          <h3 style={{ marginTop: 40 }}>My Submissions</h3>
-          {data.submissions.map((s, i) => (
-            <div key={i} style={{ borderBottom: "1px solid #ddd", padding: 12 }}>
-              <strong>KPI {s.KPI_ID}</strong> | {s.Task_Status} | {s.Progress_Percent}%
-              <div>Manager: {s.Manager_Decision || "Pending"}</div>
-              {s.Manager_Feedback && <div>Feedback: {s.Manager_Feedback}</div>}
-            </div>
-          ))}
-        </>
-      )}
+      {/* HISTORY */}
+      <h3 style={{ marginTop: 40 }}>Submission History</h3>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)}>
+          <option value="">All Months</option>
+          {months.map(m => <option key={m} value={m}>{m}</option>)}
+        </select>
+
+        <select value={filterKPI} onChange={e => setFilterKPI(e.target.value)}>
+          <option value="">All KPIs</option>
+          {data.kpis.map(k => <option key={k.KPI_ID} value={k.KPI_ID}>{k.KPI_Name}</option>)}
+        </select>
+
+        <select value={filterDecision} onChange={e => setFilterDecision(e.target.value)}>
+          <option value="">All Decisions</option>
+          <option value="Approved">Approved</option>
+          <option value="">Pending</option>
+        </select>
+      </div>
+
+      {filteredHistory.map((s, i) => (
+        <div key={i} style={{ borderBottom: "1px solid #ddd", padding: 10 }}>
+          <strong>{s.Timestamp}</strong> | KPI {s.KPI_ID} | {s.Task_Status} | {s.Progress_Percent}%
+          <div>Decision: {s.Manager_Decision || "Pending"}</div>
+          {s.Manager_Feedback && <div>Feedback: {s.Manager_Feedback}</div>}
+        </div>
+      ))}
 
       {/* ADMIN APPROVALS */}
       {isAdmin && data.pendingApprovals?.length > 0 && (
@@ -231,27 +286,21 @@ export default function App() {
             <div key={i} style={{ border: "1px solid #ccc", padding: 12, marginBottom: 12 }}>
               <strong>{s.Name}</strong> | KPI {s.KPI_ID}
               <div>Today: {s.Focus_Today}</div>
-              {s.Manager_Decision ? (
-                <div>✅ Reviewed</div>
-              ) : (
-                <>
-                  <textarea
-                    placeholder="Manager feedback"
-                    value={feedbackDraft[i] || ""}
-                    onChange={e => setFeedbackDraft({ ...feedbackDraft, [i]: e.target.value })}
-                    style={{ width: "100%", marginTop: 8 }}
-                  />
-                  <button onClick={() => submitFeedback(s, i)} disabled={savingIndex === i}>
-                    Approve
-                  </button>
-                </>
-              )}
+              <textarea
+                placeholder="Manager feedback"
+                value={feedbackDraft[i] || ""}
+                onChange={e => setFeedbackDraft({ ...feedbackDraft, [i]: e.target.value })}
+                style={{ width: "100%", marginTop: 8 }}
+              />
+              <button onClick={() => submitFeedback(s, i)} disabled={savingIndex === i}>
+                Approve
+              </button>
             </div>
           ))}
         </>
       )}
 
-      {/* SUBMIT UPDATE */}
+      {/* SUBMIT */}
       <h3 style={{ marginTop: 40 }}>Submit Update</h3>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <select value={selectedKPI} onChange={e => setSelectedKPI(e.target.value)}>
@@ -264,8 +313,12 @@ export default function App() {
           <option>Done</option>
         </select>
 
-        <input type="number" placeholder="Progress %" value={taskStatus === "Done" ? 100 : progressPercent}
-          onChange={e => setProgressPercent(e.target.value)} />
+        <input
+          type="number"
+          placeholder="Progress %"
+          value={taskStatus === "Done" ? 100 : progressPercent}
+          onChange={e => setProgressPercent(e.target.value)}
+        />
 
         <textarea placeholder="Today" value={focusToday} onChange={e => setFocusToday(e.target.value)} />
         <textarea placeholder="Blockers" value={blockers} onChange={e => setBlockers(e.target.value)} />
