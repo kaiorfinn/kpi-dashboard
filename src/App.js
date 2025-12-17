@@ -91,7 +91,7 @@ export default function App() {
   }, [data, submissions]);
 
   /* =============================
-     LOGIN (ENTER KEY ENABLED)
+     LOGIN (ENTER ENABLED)
   ============================= */
   if (!authKey) {
     return (
@@ -130,7 +130,7 @@ export default function App() {
   const isAdmin = data.userInfo.role === "Admin";
 
   /* =============================
-     ACTIONS (LOGIC UNCHANGED, FASTER)
+     ACTIONS (LOGIC UNCHANGED)
   ============================= */
   const submitUpdate = () => {
     if (!selectedKPI) return alert("Select KPI");
@@ -196,12 +196,19 @@ export default function App() {
   };
 
   /* =============================
-     UI (UNCHANGED)
+     UI (FULL STRUCTURE RESTORED)
   ============================= */
   return (
     <div style={{ padding: 24, maxWidth: 1200 }}>
       <h2>KPI Dashboard</h2>
+      <p>
+        User: <strong>{data.userInfo.name}</strong> ({data.userInfo.role})
+      </p>
+      <button onClick={() => { localStorage.removeItem("authKey"); window.location.reload(); }}>
+        Log out
+      </button>
 
+      {/* KPI OVERVIEW */}
       <div style={section}>
         <h3>KPIs</h3>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 16 }}>
@@ -222,6 +229,65 @@ export default function App() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* SUBMIT UPDATE */}
+      <div style={section}>
+        <h3>Submit Update</h3>
+        <div style={{ ...card, display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
+          <select value={selectedKPI} onChange={e => setSelectedKPI(e.target.value)}>
+            <option value="">Select KPI</option>
+            {data.kpis.map(k => (
+              <option key={k.KPI_ID} value={k.KPI_ID}>{k.KPI_Name}</option>
+            ))}
+          </select>
+
+          <select value={taskStatus} onChange={e => setTaskStatus(e.target.value)}>
+            <option>In Progress</option>
+            <option>Done</option>
+          </select>
+
+          <input
+            type="number"
+            placeholder="Progress %"
+            value={progressPercent}
+            onChange={e => setProgressPercent(e.target.value)}
+          />
+
+          <textarea placeholder="Today" value={focusToday} onChange={e => setFocusToday(e.target.value)} />
+          <textarea placeholder="Blockers" value={blockers} onChange={e => setBlockers(e.target.value)} />
+          <textarea placeholder="Tomorrow" value={focusTomorrow} onChange={e => setFocusTomorrow(e.target.value)} />
+
+          <button onClick={submitUpdate}>Submit</button>
+        </div>
+      </div>
+
+      {/* SUBMISSION HISTORY */}
+      <div style={section}>
+        <h3>Submission History</h3>
+        <table width="100%" cellPadding="10">
+          <thead>
+            <tr>
+              {["Time","Name","KPI","Submitted","Adjusted","Decision","Feedback","Reviewed By"].map(h => (
+                <th key={h}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {submissions.map(s => (
+              <tr key={s.ROW_ID}>
+                <td>{s.Timestamp}</td>
+                <td>{s.Name}</td>
+                <td>{s.KPI_ID}</td>
+                <td>{s.Progress_Percent}%</td>
+                <td>{s.Manager_Adjusted_Progress ?? "-"}</td>
+                <td>{s.Manager_Decision || "Pending"}</td>
+                <td>{s.Manager_Feedback || "-"}</td>
+                <td>{s.Reviewed_By || "-"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
