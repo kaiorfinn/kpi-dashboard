@@ -43,15 +43,16 @@ export default function App() {
      ADMIN
   ============================= */
   const [feedbackDraft, setFeedbackDraft] = useState({});
+  const [savingRowId, setSavingRowId] = useState(null);
 
   /* =============================
-     FETCH (READ ONLY)
+     FETCH
   ============================= */
   const fetchData = async key => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API_URL}?authKey=${encodeURIComponent(key)}`);
+      const res = await fetch(${API_URL}?authKey=${encodeURIComponent(key)});
       const json = await res.json();
       if (json.error) throw new Error(json.error);
 
@@ -88,7 +89,7 @@ export default function App() {
   }, [data, submissions]);
 
   /* =============================
-     LOGIN (ENTER KEY ENABLED)
+     LOGIN
   ============================= */
   if (!authKey) {
     return (
@@ -100,9 +101,6 @@ export default function App() {
             placeholder="Auth Key"
             value={loginKey}
             onChange={e => setLoginKey(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === "Enter") fetchData(loginKey);
-            }}
             style={{ width: "100%", padding: 10 }}
           />
           <button onClick={() => fetchData(loginKey)} style={{ marginTop: 12, width: "100%" }}>
@@ -121,9 +119,7 @@ export default function App() {
   /* =============================
      ACTIONS
   ============================= */
-
-  // 🚀 FAST SUBMIT (NO BLOCKING)
-  const submitUpdate = () => {
+  const submitUpdate = async () => {
     if (!selectedKPI) return alert("Select KPI");
 
     const finalProgress =
@@ -132,25 +128,7 @@ export default function App() {
     const kpi = data.kpis.find(k => String(k.KPI_ID) === String(selectedKPI));
     if (!kpi) return;
 
-    // Optimistic UI
-    setData(prev => ({
-      ...prev,
-      submissionHistory: [
-        {
-          Timestamp: new Date().toISOString(),
-          Name: prev.userInfo.name,
-          KPI_ID: selectedKPI,
-          Progress_Percent: finalProgress,
-          Manager_Decision: "",
-          Manager_Adjusted_Progress: "",
-          ROW_ID: `tmp-${Date.now()}`
-        },
-        ...(prev.submissionHistory || [])
-      ]
-    }));
-
-    // Fire-and-forget (NO await, NO crash)
-    fetch(API_URL, {
+    await fetch(API_URL, {
       method: "POST",
       mode: "no-cors",
       headers: { "Content-Type": "application/json" },
@@ -167,7 +145,7 @@ export default function App() {
           focus_tomorrow: focusTomorrow || "N/A"
         }
       })
-    }).catch(() => {}); // 🔒 swallow
+    });
 
     setSelectedKPI("");
     setProgressPercent("");
@@ -175,30 +153,15 @@ export default function App() {
     setBlockers("");
     setFocusTomorrow("");
     setTaskStatus("In Progress");
+
+    setTimeout(() => fetchData(authKey), 600);
   };
 
-  const submitFeedback = (s, decision, adjusted) => {
+  const submitFeedback = async (s, decision, adjusted) => {
     const draft = feedbackDraft[s.ROW_ID] || {};
+    setSavingRowId(s.ROW_ID);
 
-    // Optimistic UI
-    setData(prev => ({
-      ...prev,
-      submissionHistory: prev.submissionHistory.map(row =>
-        row.ROW_ID === s.ROW_ID
-          ? {
-              ...row,
-              Manager_Decision: decision,
-              Manager_Adjusted_Progress:
-                decision === "Rejected" ? 0 : Number(adjusted) || 0,
-              Manager_Feedback: draft.feedback || "",
-              Reviewed_By: prev.userInfo.name
-            }
-          : row
-      )
-    }));
-
-    // Fire-and-forget (NO await, NO crash)
-    fetch(API_URL, {
+    await fetch(API_URL, {
       method: "POST",
       mode: "no-cors",
       headers: { "Content-Type": "application/json" },
@@ -209,16 +172,18 @@ export default function App() {
           row_id: s.ROW_ID,
           kpi_id: s.KPI_ID,
           decision,
-          adjusted_progress:
-            decision === "Rejected" ? 0 : Number(adjusted) || 0,
+          adjusted_progress: decision === "Rejected" ? 0 : Number(adjusted) || 0,
           feedback: draft.feedback || ""
         }
       })
-    }).catch(() => {}); // 🔒 swallow
+    });
+
+    setTimeout(() => fetchData(authKey), 600);
+    setSavingRowId(null);
   };
 
   /* =============================
-     UI (UNCHANGED)
+     UI
   ============================= */
   return (
     <div style={{ padding: 24, maxWidth: 1200 }}>
@@ -237,6 +202,19 @@ export default function App() {
           {data.kpis.map(k => (
             <div key={k.KPI_ID} style={card}>
               <strong>{k.KPI_Name}</strong>
+              <div style={{ fontSize: 13, color: "#6b7280" }}>
+                Owner: <strong>{k.Assigned_User || "Unassigned"}</strong>
+              </div>
+              <div style={{ marginTop: 8 }}>{k.Description}</div>
+              <div style={{ height: 8, background: "#e5e7eb", marginTop: 12 }}>
+                <div
+                  style={{
+                    width: ${k.Completion || 0}%,
+                    height: "100%",
+                    background: k.Completion >= 100 ? "#16a34a" : "#2563eb"
+                  }}
+                />
+              </div>
               <div>Completion: {k.Completion || 0}%</div>
             </div>
           ))}
@@ -247,19 +225,117 @@ export default function App() {
       {isAdmin && (
         <div style={section}>
           <h3>Pending Approvals</h3>
-          {pendingApprovals.map(s => (
-            <div key={s.ROW_ID} style={{ ...card, marginBottom: 16 }}>
-              <strong>{s.Name} | KPI {s.KPI_ID}</strong>
-              <button onClick={() => submitFeedback(s, "Approved", s.Progress_Percent)}>
-                Approve
-              </button>
-              <button onClick={() => submitFeedback(s, "Rejected", 0)}>
-                Reject
-              </button>
-            </div>
-          ))}
+          {pendingApprovals.map(s => {
+            const draft = feedbackDraft[s.ROW_ID] || {};
+            return (
+              <div key={s.ROW_ID} style={{ ...card, marginBottom: 16 }}>
+                <strong>{s.Name} | KPI {s.KPI_ID}</strong>
+                <div>Submitted: {s.Progress_Percent}%</div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: 12, marginTop: 12 }}>
+                  <label>Adjusted Progress</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={draft.adjusted ?? s.Progress_Percent}
+                    onChange={e =>
+                      setFeedbackDraft({
+                        ...feedbackDraft,
+                        [s.ROW_ID]: { ...draft, adjusted: e.target.value }
+                      })
+                    }
+                  />
+
+                  <label>Manager Feedback</label>
+                  <textarea
+                    value={draft.feedback || ""}
+                    onChange={e =>
+                      setFeedbackDraft({
+                        ...feedbackDraft,
+                        [s.ROW_ID]: { ...draft, feedback: e.target.value }
+                      })
+                    }
+                  />
+                </div>
+
+                <div style={{ marginTop: 12 }}>
+                  <button onClick={() => submitFeedback(s, "Approved", draft.adjusted)}>
+                    Approve
+                  </button>
+                  <button
+                    style={{ marginLeft: 8, background: "#fee2e2" }}
+                    onClick={() => submitFeedback(s, "Rejected", 0)}
+                  >
+                    Reject
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
+
+      {/* SUBMIT UPDATE */}
+      <div style={section}>
+        <h3>Submit Update</h3>
+        <div style={{ ...card, display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
+          <select value={selectedKPI} onChange={e => setSelectedKPI(e.target.value)}>
+            <option value="">Select KPI</option>
+            {data.kpis.map(k => (
+              <option key={k.KPI_ID} value={k.KPI_ID}>
+                {k.KPI_Name}
+              </option>
+            ))}
+          </select>
+
+          <select value={taskStatus} onChange={e => setTaskStatus(e.target.value)}>
+            <option>In Progress</option>
+            <option>Done</option>
+          </select>
+
+          <input
+            placeholder="Progress %"
+            type="number"
+            value={progressPercent}
+            onChange={e => setProgressPercent(e.target.value)}
+          />
+
+          <textarea placeholder="Today" value={focusToday} onChange={e => setFocusToday(e.target.value)} />
+          <textarea placeholder="Blockers" value={blockers} onChange={e => setBlockers(e.target.value)} />
+          <textarea placeholder="Tomorrow" value={focusTomorrow} onChange={e => setFocusTomorrow(e.target.value)} />
+
+          <button onClick={submitUpdate}>Submit</button>
+        </div>
+      </div>
+
+      {/* SUBMISSION HISTORY */}
+      <div style={section}>
+        <h3>Submission History</h3>
+        <table width="100%" cellPadding="10" style={{ borderCollapse: "collapse" }}>
+          <thead style={{ background: "#f9fafb" }}>
+            <tr>
+              {["Time","Name","KPI","Submitted","Adjusted","Decision","Feedback","Reviewed By"].map(h => (
+                <th key={h} style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {submissions.map(s => (
+              <tr key={s.ROW_ID}>
+                <td>{s.Timestamp}</td>
+                <td>{s.Name}</td>
+                <td>{s.KPI_ID}</td>
+                <td>{s.Progress_Percent}%</td>
+                <td>{s.Manager_Adjusted_Progress ?? "-"}</td>
+                <td>{s.Manager_Decision || "Pending"}</td>
+                <td>{s.Manager_Feedback || "-"}</td>
+                <td>{s.Reviewed_By || "-"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
