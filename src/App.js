@@ -231,6 +231,90 @@ export default function App() {
         </div>
       </div>
 
+{/* ADMIN APPROVALS */}
+{isAdmin && (
+  <div style={section}>
+    <h3>Pending Approvals</h3>
+
+    {pendingApprovals.length === 0 && (
+      <div style={{ color: "#6b7280" }}>No pending submissions</div>
+    )}
+
+    {pendingApprovals.map(s => {
+      const draft = feedbackDraft[s.ROW_ID] || {};
+
+      return (
+        <div key={s.ROW_ID} style={{ ...card, marginBottom: 16 }}>
+          <strong>
+            {s.Name} | KPI {s.KPI_ID}
+          </strong>
+
+          <div style={{ marginTop: 6 }}>
+            Submitted Progress: <strong>{s.Progress_Percent}%</strong>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "160px 1fr",
+              gap: 12,
+              marginTop: 12
+            }}
+          >
+            <label>Adjusted Progress</label>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={draft.adjusted ?? s.Progress_Percent}
+              onChange={e =>
+                setFeedbackDraft({
+                  ...feedbackDraft,
+                  [s.ROW_ID]: {
+                    ...draft,
+                    adjusted: e.target.value
+                  }
+                })
+              }
+            />
+
+            <label>Manager Feedback</label>
+            <textarea
+              value={draft.feedback || ""}
+              onChange={e =>
+                setFeedbackDraft({
+                  ...feedbackDraft,
+                  [s.ROW_ID]: {
+                    ...draft,
+                    feedback: e.target.value
+                  }
+                })
+              }
+            />
+          </div>
+
+          <div style={{ marginTop: 12 }}>
+            <button
+              onClick={() =>
+                submitFeedback(s, "Approved", draft.adjusted)
+              }
+            >
+              Approve
+            </button>
+
+            <button
+              style={{ marginLeft: 8, background: "#fee2e2" }}
+              onClick={() => submitFeedback(s, "Rejected", 0)}
+            >
+              Reject
+            </button>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+)}
+
       {/* SUBMIT UPDATE */}
       <div style={section}>
         <h3>Submit Update</h3>
