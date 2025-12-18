@@ -14,7 +14,6 @@ const card = {
   padding: 16,
   background: "#fff",
   boxShadow: "0 1px 2px rgba(0,0,0,.05)",
-  position: "relative",
   display: "flex",
   flexDirection: "column",
   gap: 6
@@ -33,10 +32,10 @@ const progressWrap = {
   marginTop: 6
 };
 
-const progressBar = percent => ({
+const progressBar = (percent, expired) => ({
   width: `${percent}%`,
   height: "100%",
-  background: "#2563eb"
+  background: expired ? "#dc2626" : "#16a34a"
 });
 
 /* =============================
@@ -117,33 +116,71 @@ export default function App() {
     s => !s.Manager_Decision
   ).length;
 
+  /* =============================
+     LOGIN UI
+  ============================= */
   if (!authKey) {
     return (
       <form
         onSubmit={e => {
           e.preventDefault();
+          if (!loginKey || loading) return;
           fetchData(loginKey);
         }}
         style={{
           minHeight: "100vh",
           display: "flex",
           alignItems: "center",
-          justifyContent: "center"
+          justifyContent: "center",
+          background: "#f9fafb"
         }}
       >
-        <div style={{ width: 420, padding: 32, border: "1px solid #ddd" }}>
-          <h2>KPI Dashboard Login</h2>
+        <div
+          style={{
+            width: 420,
+            padding: 36,
+            borderRadius: 12,
+            background: "#fff",
+            border: "1px solid #e5e7eb",
+            boxShadow: "0 10px 25px rgba(0,0,0,0.06)"
+          }}
+        >
+          <h2 style={{ marginBottom: 24 }}>KPI Dashboard Login</h2>
+
           <input
             type="password"
             placeholder="Auth Key"
             value={loginKey}
+            disabled={loading}
             onChange={e => setLoginKey(e.target.value)}
-            style={{ width: "100%", padding: 10 }}
+            style={{
+              width: "100%",
+              padding: 12,
+              fontSize: 14,
+              borderRadius: 6,
+              border: "1px solid #d1d5db"
+            }}
           />
-          <button type="submit" style={{ marginTop: 12, width: "100%" }}>
-            Login
+
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              marginTop: 16,
+              width: "100%",
+              padding: 12,
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              background: loading ? "#e5e7eb" : "#f3f4f6",
+              cursor: loading ? "not-allowed" : "pointer"
+            }}
+          >
+            {loading ? "Logging in…" : "Login"}
           </button>
-          {error && <p style={{ color: "red" }}>{error}</p>}
+
+          {error && (
+            <p style={{ color: "#dc2626", marginTop: 12 }}>{error}</p>
+          )}
         </div>
       </form>
     );
@@ -204,13 +241,15 @@ export default function App() {
             {list.map(k => {
               const expired = isExpired(k);
               const statusText = expired ? "EXPIRED" : "ACTIVE";
+              const statusColor = expired ? "#dc2626" : "#16a34a";
               const completion = Number(k.Completion) || 0;
 
               return (
                 <div key={k.KPI_ID} style={card}>
-                  <div>
-                    <strong>Status:</strong> {statusText}
+                  <div style={{ color: statusColor, fontWeight: 600 }}>
+                    Status: {statusText}
                   </div>
+
                   <div>
                     <strong>Due:</strong> {formatDateOnly(k.CompletionDate)}
                   </div>
@@ -220,11 +259,13 @@ export default function App() {
                   <div>
                     <strong>{k.KPI_Name}</strong>
                   </div>
+
                   <div style={{ fontSize: 13 }}>{k.Description}</div>
 
                   <div style={progressWrap}>
-                    <div style={progressBar(completion)} />
+                    <div style={progressBar(completion, expired)} />
                   </div>
+
                   <div style={{ fontSize: 12 }}>
                     Progress: {completion}%
                   </div>
@@ -235,7 +276,7 @@ export default function App() {
         </div>
       ))}
 
-      {/* SUBMISSION HISTORY (UNCHANGED) */}
+      {/* SUBMISSION HISTORY */}
       <div style={section}>
         <h3>Submission History</h3>
         <table width="100%" cellPadding="10">
