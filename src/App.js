@@ -6,8 +6,6 @@ const API_URL =
 /* =============================
    UI STYLES
 ============================= */
-const section = { marginTop: 40 };
-
 const sectionDivider = {
   borderTop: "2px solid #e5e7eb",
   margin: "40px 0"
@@ -90,6 +88,9 @@ const nameColor = name => {
   return colors[hash % colors.length];
 };
 
+/* =============================
+   APP
+============================= */
 export default function App() {
   const [authKey, setAuthKey] = useState(localStorage.getItem("authKey") || "");
   const [loginKey, setLoginKey] = useState("");
@@ -97,6 +98,33 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  /* =============================
+     FAVICON + TITLE CONTROL
+  ============================= */
+  useEffect(() => {
+    const link =
+      document.querySelector("link[rel~='icon']") ||
+      document.createElement("link");
+
+    link.rel = "icon";
+
+    if (!data) {
+      link.href = "/login.png";
+      document.title = "KPI Dashboard – Login";
+    } else if (data.userInfo.role === "Admin") {
+      link.href = "/admin.png";
+      document.title = `KPI Dashboard – ${data.userInfo.name} (Admin)`;
+    } else {
+      link.href = "/employee.png";
+      document.title = `KPI Dashboard – ${data.userInfo.name} (Employee)`;
+    }
+
+    document.head.appendChild(link);
+  }, [data]);
+
+  /* =============================
+     FETCH
+  ============================= */
   const fetchData = async key => {
     setLoading(true);
     setError("");
@@ -120,14 +148,23 @@ export default function App() {
     if (authKey) fetchData(authKey);
   }, [authKey]);
 
-  const submissions = useMemo(() => data?.submissionHistory || [], [data]);
+  /* =============================
+     DERIVED
+  ============================= */
   const todayStr = new Date().toISOString().split("T")[0];
 
-  /** ✅ FIXED PENDING TASK LOGIC */
+  /** ✅ CORRECT PENDING KPI LOGIC */
   const pendingTaskCount = data
-    ? data.kpis.filter(k => Number(k.Completion) < 100).length
+    ? data.kpis.filter(
+        k =>
+          Number(k.Completion) < 100 &&
+          String(k.KPI_Status || "").toLowerCase() !== "done"
+      ).length
     : 0;
 
+  /* =============================
+     LOGIN
+  ============================= */
   if (!authKey) {
     return (
       <form
@@ -144,15 +181,23 @@ export default function App() {
           background: "#f9fafb"
         }}
       >
-        <div style={{
-          width: 420,
-          padding: 36,
-          borderRadius: 12,
-          background: "#fff",
-          border: "1px solid #e5e7eb",
-          boxShadow: "0 10px 25px rgba(0,0,0,0.06)"
-        }}>
+        <div
+          style={{
+            width: 420,
+            padding: 36,
+            borderRadius: 12,
+            background: "#fff",
+            border: "1px solid #e5e7eb",
+            boxShadow: "0 10px 25px rgba(0,0,0,0.06)"
+          }}
+        >
+          <img
+            src="/login.png"
+            alt="Login"
+            style={{ width: 48, marginBottom: 12 }}
+          />
           <h2>KPI Dashboard Login</h2>
+
           <input
             type="password"
             placeholder="Auth Key"
@@ -161,9 +206,15 @@ export default function App() {
             onChange={e => setLoginKey(e.target.value)}
             style={{ width: "100%", padding: 12, marginTop: 12 }}
           />
-          <button type="submit" disabled={loading} style={{ marginTop: 16, width: "100%" }}>
+
+          <button
+            type="submit"
+            disabled={loading}
+            style={{ marginTop: 16, width: "100%" }}
+          >
             {loading ? "Logging in…" : "Login"}
           </button>
+
           {error && <p style={{ color: "#dc2626" }}>{error}</p>}
         </div>
       </form>
@@ -172,6 +223,9 @@ export default function App() {
 
   if (loading || !data) return <div style={{ padding: 40 }}>Loading…</div>;
 
+  /* =============================
+     KPI GROUPING
+  ============================= */
   const allKPIs = [...data.kpis].sort((a, b) =>
     String(a.Assigned_User).localeCompare(String(b.Assigned_User))
   );
@@ -188,6 +242,9 @@ export default function App() {
     others: list.filter(k => k.Assigned_User !== myName)
   });
 
+  /* =============================
+     KPI SECTION
+  ============================= */
   const renderSection = (title, list) => {
     const { mine, others } = splitByOwner(list);
 
@@ -248,20 +305,27 @@ export default function App() {
     );
   };
 
+  /* =============================
+     UI
+  ============================= */
   return (
     <div style={{ padding: 24, maxWidth: 1200 }}>
       <h2>KPI Dashboard</h2>
 
       <div style={{ display: "flex", gap: 60, marginBottom: 16 }}>
-        <div>User: <strong>{data.userInfo.name}</strong> ({data.userInfo.role})</div>
+        <div>
+          User: <strong>{data.userInfo.name}</strong> ({data.userInfo.role})
+        </div>
         <div>Today: {todayStr}</div>
         <div>Pending Task: {pendingTaskCount}</div>
       </div>
 
-      <button onClick={() => {
-        localStorage.removeItem("authKey");
-        window.location.reload();
-      }}>
+      <button
+        onClick={() => {
+          localStorage.removeItem("authKey");
+          window.location.reload();
+        }}
+      >
         Log out
       </button>
 
