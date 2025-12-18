@@ -38,6 +38,21 @@ const progressBar = (percent, expired) => ({
   background: expired ? "#dc2626" : "#16a34a"
 });
 
+const ownerRow = {
+  display: "flex",
+  alignItems: "center",
+  gap: 6
+};
+
+const ownerPill = color => ({
+  padding: "2px 10px",
+  borderRadius: 999,
+  background: color,
+  color: "#fff",
+  fontSize: 12,
+  fontWeight: 500
+});
+
 /* =============================
    HELPERS
 ============================= */
@@ -63,7 +78,7 @@ const isExpired = k => {
   return daysDiff(k.CompletionDate) < 0;
 };
 
-// stable color per name
+// stable color per owner
 const nameColor = name => {
   const colors = ["#2563eb", "#7c3aed", "#0d9488", "#ea580c"];
   let hash = 0;
@@ -115,10 +130,7 @@ export default function App() {
   /* =============================
      DERIVED
   ============================= */
-  const submissions = useMemo(
-    () => data?.submissionHistory || [],
-    [data]
-  );
+  const submissions = useMemo(() => data?.submissionHistory || [], [data]);
 
   const todayStr = new Date().toISOString().split("T")[0];
 
@@ -181,8 +193,7 @@ export default function App() {
               padding: 12,
               borderRadius: 6,
               border: "1px solid #d1d5db",
-              background: loading ? "#e5e7eb" : "#f3f4f6",
-              cursor: loading ? "not-allowed" : "pointer"
+              background: loading ? "#e5e7eb" : "#f3f4f6"
             }}
           >
             {loading ? "Logging in…" : "Login"}
@@ -230,6 +241,7 @@ export default function App() {
         const statusColor = expired ? "#dc2626" : "#16a34a";
         const completion = Number(k.Completion) || 0;
         const diff = daysDiff(k.CompletionDate);
+        const ownerClr = nameColor(k.Assigned_User);
 
         return (
           <div key={k.KPI_ID} style={card}>
@@ -238,15 +250,17 @@ export default function App() {
             </div>
 
             <div>
-  <strong>Due:</strong> {formatDateOnly(k.CompletionDate)}
-</div>
+              <strong>Due:</strong> {formatDateOnly(k.CompletionDate)}
+            </div>
 
-<div>
-  <strong>Due in:</strong> {diff !== null ? `${diff} days` : "-"}
-</div>
+            <div>
+              <strong>Due in:</strong>{" "}
+              {diff !== null ? `${diff} days` : "-"}
+            </div>
 
-            <div style={{ fontSize: 12, color: nameColor(k.Assigned_User) }}>
-              Owner: {k.Assigned_User}
+            <div style={ownerRow}>
+              <span>Owner:</span>
+              <span style={ownerPill(ownerClr)}>{k.Assigned_User}</span>
             </div>
 
             <div style={divider} />
@@ -315,7 +329,7 @@ export default function App() {
       {renderSection("Weekly", weeklyKPIs)}
       {renderSection("Monthly", monthlyKPIs)}
 
-      {/* SUBMISSION HISTORY (UNCHANGED) */}
+      {/* SUBMISSION HISTORY */}
       <div style={section}>
         <h3>Submission History</h3>
         <table width="100%" cellPadding="10">
