@@ -48,17 +48,27 @@ const formatDateOnly = d => {
   return date.toISOString().split("T")[0];
 };
 
+const daysDiff = d => {
+  if (!d) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(d);
+  due.setHours(0, 0, 0, 0);
+  return Math.round((due - today) / 86400000);
+};
+
 const isExpired = k => {
   if (!k.CompletionDate) return false;
   if (String(k.KPI_Status || "").toLowerCase() === "done") return false;
+  return daysDiff(k.CompletionDate) < 0;
+};
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const due = new Date(k.CompletionDate);
-  due.setHours(0, 0, 0, 0);
-
-  return due < today;
+// stable color per name
+const nameColor = name => {
+  const colors = ["#2563eb", "#7c3aed", "#0d9488", "#ea580c"];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash += name.charCodeAt(i);
+  return colors[hash % colors.length];
 };
 
 export default function App() {
@@ -188,15 +198,94 @@ export default function App() {
 
   if (loading || !data) return <div style={{ padding: 40 }}>Loading…</div>;
 
-  const dailyKPIs = data.kpis.filter(
-    k => String(k.KPIType).toLowerCase() === "daily"
+  /* =============================
+     KPI GROUPING
+  ============================= */
+  const allKPIs = [...data.kpis].sort((a, b) =>
+    String(a.Assigned_User).localeCompare(String(b.Assigned_User))
   );
-  const weeklyKPIs = data.kpis.filter(
-    k => String(k.KPIType).toLowerCase() === "weekly"
-  );
-  const monthlyKPIs = data.kpis.filter(
-    k => String(k.KPIType).toLowerCase() === "monthly"
-  );
+
+  const dailyKPIs = allKPIs.filter(k => k.KPIType === "Daily");
+  const weeklyKPIs = allKPIs.filter(k => k.KPIType === "Weekly");
+  const monthlyKPIs = allKPIs.filter(k => k.KPIType === "Monthly");
+
+  const isAdmin = data.userInfo.role === "Admin";
+  const myName = data.userInfo.name;
+
+  const splitByOwner = list => ({
+    mine: list.filter(k => k.Assigned_User === myName),
+    others: list.filter(k => k.Assigned_User !== myName)
+  });
+
+  /* =============================
+     KPI SECTION RENDER
+  ============================= */
+  const renderSection = (title, list) => {
+    const { mine, others } = splitByOwner(list);
+
+    const renderCards = items =>
+      items.map(k => {
+        const expired = isExpired(k);
+        const statusText = expired ? "EXPIRED" : "ACTIVE";
+        const statusColor = expired ? "#dc2626" : "#16a34a";
+        const completion = Number(k.Completion) || 0;
+        const diff = daysDiff(k.CompletionDate);
+
+        return (
+          <div key={k.KPI_ID} style={card}>
+            <div style={{ color: statusColor, fontWeight: 600 }}>
+              Status: {statusText}
+            </div>
+
+            <div>
+              <strong>Due:</strong> {formatDateOnly(k.CompletionDate)}
+            </div>
+
+            <div style={{ fontSize: 12 }}>
+              Due in: {diff !== null ? `${diff} days` : "-"}
+            </div>
+
+            <div style={{ fontSize: 12, color: nameColor(k.Assigned_User) }}>
+              Owner: {k.Assigned_User}
+            </div>
+
+            <div style={divider} />
+
+            <div>
+              <strong>{k.KPI_Name}</strong>
+            </div>
+
+            <div style={{ fontSize: 13 }}>{k.Description}</div>
+
+            <div style={progressWrap}>
+              <div style={progressBar(completion, expired)} />
+            </div>
+
+            <div style={{ fontSize: 12 }}>Progress: {completion}%</div>
+          </div>
+        );
+      });
+
+    return (
+      <div style={section}>
+        <h3>{title}</h3>
+
+        {isAdmin && mine.length > 0 && (
+          <>
+            <h4>Admin — My Tasks</h4>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16 }}>
+              {renderCards(mine)}
+            </div>
+          </>
+        )}
+
+        <h4>{isAdmin ? "Employees — Team Tasks" : "Tasks"}</h4>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16 }}>
+          {renderCards(isAdmin ? others : list)}
+        </div>
+      </div>
+    );
+  };
 
   /* =============================
      UI
@@ -222,61 +311,11 @@ export default function App() {
         Log out
       </button>
 
-      {/* KPI SECTIONS */}
-      {[
-        ["Daily", dailyKPIs],
-        ["Weekly", weeklyKPIs],
-        ["Monthly", monthlyKPIs]
-      ].map(([title, list]) => (
-        <div key={title} style={section}>
-          <h3>{title}</h3>
+      {renderSection("Daily", dailyKPIs)}
+      {renderSection("Weekly", weeklyKPIs)}
+      {renderSection("Monthly", monthlyKPIs)}
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(5, 1fr)",
-              gap: 16
-            }}
-          >
-            {list.map(k => {
-              const expired = isExpired(k);
-              const statusText = expired ? "EXPIRED" : "ACTIVE";
-              const statusColor = expired ? "#dc2626" : "#16a34a";
-              const completion = Number(k.Completion) || 0;
-
-              return (
-                <div key={k.KPI_ID} style={card}>
-                  <div style={{ color: statusColor, fontWeight: 600 }}>
-                    Status: {statusText}
-                  </div>
-
-                  <div>
-                    <strong>Due:</strong> {formatDateOnly(k.CompletionDate)}
-                  </div>
-
-                  <div style={divider} />
-
-                  <div>
-                    <strong>{k.KPI_Name}</strong>
-                  </div>
-
-                  <div style={{ fontSize: 13 }}>{k.Description}</div>
-
-                  <div style={progressWrap}>
-                    <div style={progressBar(completion, expired)} />
-                  </div>
-
-                  <div style={{ fontSize: 12 }}>
-                    Progress: {completion}%
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-
-      {/* SUBMISSION HISTORY */}
+      {/* SUBMISSION HISTORY (UNCHANGED) */}
       <div style={section}>
         <h3>Submission History</h3>
         <table width="100%" cellPadding="10">
