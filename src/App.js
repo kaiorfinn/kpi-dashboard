@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 const API_URL =
   "https://script.google.com/macros/s/AKfycbwutvWRTxac6YzooC2xHx0AHR8V2sDohtyQ7KRSz5IOhpCfZV-MLMKMiW3U00LS5FGT/exec";
@@ -102,24 +102,23 @@ export default function App() {
      FAVICON + TITLE CONTROL
   ============================= */
   useEffect(() => {
-    const link =
-      document.querySelector("link[rel~='icon']") ||
-      document.createElement("link");
-
-    link.rel = "icon";
+    let link = document.querySelector("link[rel='icon']");
+    if (!link) {
+      link = document.createElement("link");
+      link.rel = "icon";
+      document.head.appendChild(link);
+    }
 
     if (!data) {
       link.href = "/login.png";
       document.title = "KPI Dashboard – Login";
     } else if (data.userInfo.role === "Admin") {
       link.href = "/admin.png";
-      document.title = `KPI Dashboard – ${data.userInfo.name} (Admin)`;
+      document.title = "KPI Dashboard – Admin";
     } else {
       link.href = "/employee.png";
-      document.title = `KPI Dashboard – ${data.userInfo.name} (Employee)`;
+      document.title = "KPI Dashboard – Employee";
     }
-
-    document.head.appendChild(link);
   }, [data]);
 
   /* =============================
@@ -132,12 +131,14 @@ export default function App() {
       const res = await fetch(`${API_URL}?authKey=${encodeURIComponent(key)}`);
       const json = await res.json();
       if (json.error) throw new Error(json.error);
+
       localStorage.setItem("authKey", key);
       setAuthKey(key);
       setData(json);
     } catch {
       localStorage.removeItem("authKey");
       setAuthKey("");
+      setData(null);
       setError("Invalid auth key");
     } finally {
       setLoading(false);
@@ -153,7 +154,6 @@ export default function App() {
   ============================= */
   const todayStr = new Date().toISOString().split("T")[0];
 
-  /** ✅ CORRECT PENDING KPI LOGIC */
   const pendingTaskCount = data
     ? data.kpis.filter(
         k =>
@@ -163,7 +163,7 @@ export default function App() {
     : 0;
 
   /* =============================
-     LOGIN
+     LOGIN VIEW
   ============================= */
   if (!authKey) {
     return (
@@ -191,12 +191,8 @@ export default function App() {
             boxShadow: "0 10px 25px rgba(0,0,0,0.06)"
           }}
         >
-          <img
-            src="/login.png"
-            alt="Login"
-            style={{ width: 48, marginBottom: 12 }}
-          />
-          <h2>KPI Dashboard Login</h2>
+          <img src="/login.png" alt="Login" style={{ width: 48 }} />
+          <h2 style={{ marginTop: 12 }}>KPI Dashboard Login</h2>
 
           <input
             type="password"
@@ -306,7 +302,7 @@ export default function App() {
   };
 
   /* =============================
-     UI
+     DASHBOARD UI
   ============================= */
   return (
     <div style={{ padding: 24, maxWidth: 1200 }}>
