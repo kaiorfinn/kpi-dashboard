@@ -238,12 +238,12 @@ export default function App() {
             </div>
 
             <div>
-              <strong>Due:</strong> {formatDateOnly(k.CompletionDate)}
-            </div>
+  <strong>Due:</strong> {formatDateOnly(k.CompletionDate)}
+</div>
 
-            <div style={{ fontSize: 12 }}>
-              Due in: {diff !== null ? `${diff} days` : "-"}
-            </div>
+<div>
+  <strong>Due in:</strong> {diff !== null ? `${diff} days` : "-"}
+</div>
 
             <div style={{ fontSize: 12, color: nameColor(k.Assigned_User) }}>
               Owner: {k.Assigned_User}
