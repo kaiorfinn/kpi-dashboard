@@ -100,16 +100,7 @@ const pendingTaskCount = submissions.filter(
   s => !s.Manager_Decision
 ).length;
 
-// Group KPIs by type
-const dailyKPIs = data.kpis.filter(
-  k => String(k.KPIType || "").toLowerCase() === "daily"
-);
-const weeklyKPIs = data.kpis.filter(
-  k => String(k.KPIType || "").toLowerCase() === "weekly"
-);
-const monthlyKPIs = data.kpis.filter(
-  k => String(k.KPIType || "").toLowerCase() === "monthly"
-);
+
   
   /* =============================
      LOGIN (ENTER ENABLED)
@@ -148,6 +139,18 @@ const monthlyKPIs = data.kpis.filter(
 if (loading || !data) return <div style={{ padding: 40 }}>Loading…</div>;
 
 const isAdmin = data.userInfo.role === "Admin";
+
+const dailyKPIs = (data.kpis || []).filter(
+  k => String(k.KPIType || "").toLowerCase() === "daily"
+);
+
+const weeklyKPIs = (data.kpis || []).filter(
+  k => String(k.KPIType || "").toLowerCase() === "weekly"
+);
+
+const monthlyKPIs = (data.kpis || []).filter(
+  k => String(k.KPIType || "").toLowerCase() === "monthly"
+);
 
   /* =============================
      ACTIONS (UNCHANGED)
