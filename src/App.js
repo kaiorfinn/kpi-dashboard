@@ -8,6 +8,11 @@ const API_URL =
 ============================= */
 const section = { marginTop: 40 };
 
+const sectionDivider = {
+  borderTop: "2px solid #e5e7eb",
+  margin: "40px 0"
+};
+
 const card = {
   border: "1px solid #e5e7eb",
   borderRadius: 10,
@@ -78,7 +83,6 @@ const isExpired = k => {
   return daysDiff(k.CompletionDate) < 0;
 };
 
-// stable color per owner
 const nameColor = name => {
   const colors = ["#2563eb", "#7c3aed", "#0d9488", "#ea580c"];
   let hash = 0;
@@ -87,22 +91,12 @@ const nameColor = name => {
 };
 
 export default function App() {
-  /* =============================
-     AUTH
-  ============================= */
   const [authKey, setAuthKey] = useState(localStorage.getItem("authKey") || "");
   const [loginKey, setLoginKey] = useState("");
-
-  /* =============================
-     DATA
-  ============================= */
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  /* =============================
-     FETCH
-  ============================= */
   const fetchData = async key => {
     setLoading(true);
     setError("");
@@ -110,7 +104,6 @@ export default function App() {
       const res = await fetch(`${API_URL}?authKey=${encodeURIComponent(key)}`);
       const json = await res.json();
       if (json.error) throw new Error(json.error);
-
       localStorage.setItem("authKey", key);
       setAuthKey(key);
       setData(json);
@@ -127,20 +120,14 @@ export default function App() {
     if (authKey) fetchData(authKey);
   }, [authKey]);
 
-  /* =============================
-     DERIVED
-  ============================= */
   const submissions = useMemo(() => data?.submissionHistory || [], [data]);
-
   const todayStr = new Date().toISOString().split("T")[0];
 
-  const pendingTaskCount = submissions.filter(
-    s => !s.Manager_Decision
-  ).length;
+  /** ✅ FIXED PENDING TASK LOGIC */
+  const pendingTaskCount = data
+    ? data.kpis.filter(k => Number(k.Completion) < 100).length
+    : 0;
 
-  /* =============================
-     LOGIN UI
-  ============================= */
   if (!authKey) {
     return (
       <form
@@ -157,51 +144,27 @@ export default function App() {
           background: "#f9fafb"
         }}
       >
-        <div
-          style={{
-            width: 420,
-            padding: 36,
-            borderRadius: 12,
-            background: "#fff",
-            border: "1px solid #e5e7eb",
-            boxShadow: "0 10px 25px rgba(0,0,0,0.06)"
-          }}
-        >
-          <h2 style={{ marginBottom: 24 }}>KPI Dashboard Login</h2>
-
+        <div style={{
+          width: 420,
+          padding: 36,
+          borderRadius: 12,
+          background: "#fff",
+          border: "1px solid #e5e7eb",
+          boxShadow: "0 10px 25px rgba(0,0,0,0.06)"
+        }}>
+          <h2>KPI Dashboard Login</h2>
           <input
             type="password"
             placeholder="Auth Key"
             value={loginKey}
             disabled={loading}
             onChange={e => setLoginKey(e.target.value)}
-            style={{
-              width: "100%",
-              padding: 12,
-              fontSize: 14,
-              borderRadius: 6,
-              border: "1px solid #d1d5db"
-            }}
+            style={{ width: "100%", padding: 12, marginTop: 12 }}
           />
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              marginTop: 16,
-              width: "100%",
-              padding: 12,
-              borderRadius: 6,
-              border: "1px solid #d1d5db",
-              background: loading ? "#e5e7eb" : "#f3f4f6"
-            }}
-          >
+          <button type="submit" disabled={loading} style={{ marginTop: 16, width: "100%" }}>
             {loading ? "Logging in…" : "Login"}
           </button>
-
-          {error && (
-            <p style={{ color: "#dc2626", marginTop: 12 }}>{error}</p>
-          )}
+          {error && <p style={{ color: "#dc2626" }}>{error}</p>}
         </div>
       </form>
     );
@@ -209,9 +172,6 @@ export default function App() {
 
   if (loading || !data) return <div style={{ padding: 40 }}>Loading…</div>;
 
-  /* =============================
-     KPI GROUPING
-  ============================= */
   const allKPIs = [...data.kpis].sort((a, b) =>
     String(a.Assigned_User).localeCompare(String(b.Assigned_User))
   );
@@ -228,35 +188,24 @@ export default function App() {
     others: list.filter(k => k.Assigned_User !== myName)
   });
 
-  /* =============================
-     KPI SECTION RENDER
-  ============================= */
   const renderSection = (title, list) => {
     const { mine, others } = splitByOwner(list);
 
     const renderCards = items =>
       items.map(k => {
         const expired = isExpired(k);
-        const statusText = expired ? "EXPIRED" : "ACTIVE";
-        const statusColor = expired ? "#dc2626" : "#16a34a";
         const completion = Number(k.Completion) || 0;
         const diff = daysDiff(k.CompletionDate);
         const ownerClr = nameColor(k.Assigned_User);
 
         return (
           <div key={k.KPI_ID} style={card}>
-            <div style={{ color: statusColor, fontWeight: 600 }}>
-              Status: {statusText}
+            <div style={{ fontWeight: 600, color: expired ? "#dc2626" : "#16a34a" }}>
+              Status: {expired ? "EXPIRED" : "ACTIVE"}
             </div>
 
-            <div>
-              <strong>Due:</strong> {formatDateOnly(k.CompletionDate)}
-            </div>
-
-            <div>
-              <strong>Due in:</strong>{" "}
-              {diff !== null ? `${diff} days` : "-"}
-            </div>
+            <div><strong>Due:</strong> {formatDateOnly(k.CompletionDate)}</div>
+            <div><strong>Due in:</strong> {diff} days</div>
 
             <div style={ownerRow}>
               <span>Owner:</span>
@@ -265,10 +214,7 @@ export default function App() {
 
             <div style={divider} />
 
-            <div>
-              <strong>{k.KPI_Name}</strong>
-            </div>
-
+            <strong>{k.KPI_Name}</strong>
             <div style={{ fontSize: 13 }}>{k.Description}</div>
 
             <div style={progressWrap}>
@@ -281,7 +227,8 @@ export default function App() {
       });
 
     return (
-      <div style={section}>
+      <>
+        <div style={sectionDivider} />
         <h3>{title}</h3>
 
         {isAdmin && mine.length > 0 && (
@@ -297,74 +244,30 @@ export default function App() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16 }}>
           {renderCards(isAdmin ? others : list)}
         </div>
-      </div>
+      </>
     );
   };
 
-  /* =============================
-     UI
-  ============================= */
   return (
     <div style={{ padding: 24, maxWidth: 1200 }}>
       <h2>KPI Dashboard</h2>
 
       <div style={{ display: "flex", gap: 60, marginBottom: 16 }}>
-        <div>
-          User: <strong>{data.userInfo.name}</strong> ({data.userInfo.role})
-        </div>
+        <div>User: <strong>{data.userInfo.name}</strong> ({data.userInfo.role})</div>
         <div>Today: {todayStr}</div>
         <div>Pending Task: {pendingTaskCount}</div>
       </div>
 
-      <button
-        onClick={() => {
-          localStorage.removeItem("authKey");
-          window.location.reload();
-        }}
-      >
+      <button onClick={() => {
+        localStorage.removeItem("authKey");
+        window.location.reload();
+      }}>
         Log out
       </button>
 
       {renderSection("Daily", dailyKPIs)}
       {renderSection("Weekly", weeklyKPIs)}
       {renderSection("Monthly", monthlyKPIs)}
-
-      {/* SUBMISSION HISTORY */}
-      <div style={section}>
-        <h3>Submission History</h3>
-        <table width="100%" cellPadding="10">
-          <thead>
-            <tr>
-              {[
-                "Date",
-                "Name",
-                "KPI",
-                "Submitted",
-                "Adjusted",
-                "Decision",
-                "Feedback",
-                "Reviewed By"
-              ].map(h => (
-                <th key={h}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {submissions.map(s => (
-              <tr key={s.ROW_ID}>
-                <td>{formatDateOnly(s.Timestamp)}</td>
-                <td>{s.Name}</td>
-                <td>{s.KPI_ID}</td>
-                <td>{s.Progress_Percent}%</td>
-                <td>{s.Manager_Adjusted_Progress ?? "-"}</td>
-                <td>{s.Manager_Decision || "Pending"}</td>
-                <td>{s.Manager_Feedback || "-"}</td>
-                <td>{s.Reviewed_By || "-"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }
