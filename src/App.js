@@ -14,30 +14,30 @@ const card = {
   padding: 16,
   background: "#fff",
   boxShadow: "0 1px 2px rgba(0,0,0,.05)",
-  position: "relative"
+  position: "relative",
+  display: "flex",
+  flexDirection: "column",
+  gap: 6
 };
 
-const expiredBadge = {
-  position: "absolute",
-  top: 10,
-  right: 10,
-  background: "#dc2626",
-  color: "#fff",
-  padding: "4px 8px",
+const divider = {
+  borderTop: "1px solid #e5e7eb",
+  margin: "8px 0"
+};
+
+const progressWrap = {
+  height: 8,
+  background: "#e5e7eb",
   borderRadius: 6,
-  fontSize: 12,
-  fontWeight: 600
+  overflow: "hidden",
+  marginTop: 6
 };
 
-/* =============================
-   KPI UI LABEL CONFIG (EDIT HERE)
-============================= */
-const KPI_LABELS = {
-  KPIType: "Frequency",
-  CompletionDate: "Due Date",
-  KPI_Name: "Task Name",
-  Description: "Details"
-};
+const progressBar = percent => ({
+  width: `${percent}%`,
+  height: "100%",
+  background: "#2563eb"
+});
 
 /* =============================
    HELPERS
@@ -46,7 +46,7 @@ const formatDateOnly = d => {
   if (!d) return "-";
   const date = new Date(d);
   if (isNaN(date)) return "-";
-  return date.toISOString().split("T")[0]; // YYYY-MM-DD
+  return date.toISOString().split("T")[0];
 };
 
 const isExpired = k => {
@@ -61,12 +61,6 @@ const isExpired = k => {
 
   return due < today;
 };
-
-const renderField = (labelKey, value) => (
-  <div>
-    <strong>{KPI_LABELS[labelKey]}:</strong> {value || "-"}
-  </div>
-);
 
 export default function App() {
   /* =============================
@@ -178,8 +172,8 @@ export default function App() {
         <div>
           User: <strong>{data.userInfo.name}</strong> ({data.userInfo.role})
         </div>
-        <div style={{ color: "red" }}>Today: {todayStr}</div>
-        <div style={{ color: "red" }}>Pending Task: {pendingTaskCount}</div>
+        <div>Today: {todayStr}</div>
+        <div>Pending Task: {pendingTaskCount}</div>
       </div>
 
       <button
@@ -207,34 +201,48 @@ export default function App() {
               gap: 16
             }}
           >
-            {list.map(k => (
-              <div key={k.KPI_ID} style={card}>
-                {isExpired(k) && <div style={expiredBadge}>EXPIRED</div>}
+            {list.map(k => {
+              const expired = isExpired(k);
+              const statusText = expired ? "EXPIRED" : "ACTIVE";
+              const completion = Number(k.Completion) || 0;
 
-                {renderField("KPIType", k.KPIType)}
-                {renderField("CompletionDate", formatDateOnly(k.CompletionDate))}
+              return (
+                <div key={k.KPI_ID} style={card}>
+                  <div>
+                    <strong>Status:</strong> {statusText}
+                  </div>
+                  <div>
+                    <strong>Due:</strong> {formatDateOnly(k.CompletionDate)}
+                  </div>
 
-                <div style={{ marginTop: 6 }}>
-                  <strong>{k.KPI_Name}</strong>
+                  <div style={divider} />
+
+                  <div>
+                    <strong>{k.KPI_Name}</strong>
+                  </div>
+                  <div style={{ fontSize: 13 }}>{k.Description}</div>
+
+                  <div style={progressWrap}>
+                    <div style={progressBar(completion)} />
+                  </div>
+                  <div style={{ fontSize: 12 }}>
+                    Progress: {completion}%
+                  </div>
                 </div>
-
-                <div style={{ fontSize: 13 }}>
-                  {k.Description}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       ))}
 
-      {/* SUBMISSION HISTORY */}
+      {/* SUBMISSION HISTORY (UNCHANGED) */}
       <div style={section}>
         <h3>Submission History</h3>
         <table width="100%" cellPadding="10">
           <thead>
             <tr>
               {[
-                "Time",
+                "Date",
                 "Name",
                 "KPI",
                 "Submitted",
