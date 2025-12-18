@@ -4,6 +4,15 @@ const API_URL =
   "https://script.google.com/macros/s/AKfycbwutvWRTxac6YzooC2xHx0AHR8V2sDohtyQ7KRSz5IOhpCfZV-MLMKMiW3U00LS5FGT/exec";
 
 /* =============================
+   CONSTANTS (GITHUB PAGES)
+============================= */
+const BASE_PATH = "/kpi-dashboard";
+const ICON_LOGIN = `${BASE_PATH}/login.png`;
+const ICON_ADMIN = `${BASE_PATH}/admin.png`;
+const ICON_EMPLOYEE = `${BASE_PATH}/employee.png`;
+const ICON_FAVICON = `${BASE_PATH}/favicon.ico`;
+
+/* =============================
    UI STYLES
 ============================= */
 const sectionDivider = {
@@ -99,24 +108,25 @@ export default function App() {
   const [error, setError] = useState("");
 
   /* =============================
-     FAVICON + TITLE CONTROL
+     FAVICON + TITLE (FIXED)
   ============================= */
   useEffect(() => {
     let link = document.querySelector("link[rel='icon']");
     if (!link) {
       link = document.createElement("link");
       link.rel = "icon";
+      link.type = "image/x-icon";
       document.head.appendChild(link);
     }
 
     if (!data) {
-      link.href = "/login.png";
+      link.href = ICON_LOGIN;
       document.title = "KPI Dashboard – Login";
     } else if (data.userInfo.role === "Admin") {
-      link.href = "/admin.png";
+      link.href = ICON_ADMIN;
       document.title = "KPI Dashboard – Admin";
     } else {
-      link.href = "/employee.png";
+      link.href = ICON_EMPLOYEE;
       document.title = "KPI Dashboard – Employee";
     }
   }, [data]);
@@ -181,17 +191,15 @@ export default function App() {
           background: "#f9fafb"
         }}
       >
-        <div
-          style={{
-            width: 420,
-            padding: 36,
-            borderRadius: 12,
-            background: "#fff",
-            border: "1px solid #e5e7eb",
-            boxShadow: "0 10px 25px rgba(0,0,0,0.06)"
-          }}
-        >
-          <img src="/login.png" alt="Login" style={{ width: 48 }} />
+        <div style={{
+          width: 420,
+          padding: 36,
+          borderRadius: 12,
+          background: "#fff",
+          border: "1px solid #e5e7eb",
+          boxShadow: "0 10px 25px rgba(0,0,0,0.06)"
+        }}>
+          <img src={ICON_LOGIN} alt="Login" style={{ width: 48 }} />
           <h2 style={{ marginTop: 12 }}>KPI Dashboard Login</h2>
 
           <input
@@ -302,7 +310,7 @@ export default function App() {
   };
 
   /* =============================
-     DASHBOARD UI
+     DASHBOARD
   ============================= */
   return (
     <div style={{ padding: 24, maxWidth: 1200 }}>
@@ -316,12 +324,10 @@ export default function App() {
         <div>Pending Task: {pendingTaskCount}</div>
       </div>
 
-      <button
-        onClick={() => {
-          localStorage.removeItem("authKey");
-          window.location.reload();
-        }}
-      >
+      <button onClick={() => {
+        localStorage.removeItem("authKey");
+        window.location.reload();
+      }}>
         Log out
       </button>
 
