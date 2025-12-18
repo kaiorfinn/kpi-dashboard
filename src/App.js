@@ -7,12 +7,49 @@ const API_URL =
    UI STYLES
 ============================= */
 const section = { marginTop: 40 };
+
 const card = {
   border: "1px solid #e5e7eb",
   borderRadius: 10,
   padding: 16,
   background: "#fff",
-  boxShadow: "0 1px 2px rgba(0,0,0,.05)"
+  boxShadow: "0 1px 2px rgba(0,0,0,.05)",
+  position: "relative"
+};
+
+const expiredBadge = {
+  position: "absolute",
+  top: 10,
+  right: 10,
+  background: "#dc2626",
+  color: "#fff",
+  padding: "4px 8px",
+  borderRadius: 6,
+  fontSize: 12,
+  fontWeight: 600
+};
+
+/* =============================
+   HELPERS
+============================= */
+const formatDateOnly = d => {
+  if (!d) return "-";
+  const date = new Date(d);
+  if (isNaN(date)) return "-";
+  return date.toISOString().split("T")[0]; // YYYY-MM-DD
+};
+
+const isExpired = k => {
+  if (!k.CompletionDate) return false;
+  if (String(k.KPI_Status || "").toLowerCase() === "done") return false;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const due = new Date(k.CompletionDate);
+  due.setHours(0, 0, 0, 0);
+
+  return due < today;
 };
 
 export default function App() {
@@ -43,7 +80,6 @@ export default function App() {
      ADMIN
   ============================= */
   const [feedbackDraft, setFeedbackDraft] = useState({});
-  const [savingRowId, setSavingRowId] = useState(null);
 
   /* =============================
      FETCH
@@ -52,9 +88,7 @@ export default function App() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(
-        `${API_URL}?authKey=${encodeURIComponent(key)}`
-      );
+      const res = await fetch(`${API_URL}?authKey=${encodeURIComponent(key)}`);
       const json = await res.json();
       if (json.error) throw new Error(json.error);
 
@@ -77,34 +111,17 @@ export default function App() {
   /* =============================
      DERIVED
   ============================= */
-  const submissions = useMemo(() => {
-    if (!data?.submissionHistory) return [];
-    return data.submissionHistory.map(s => ({
-      ...s,
-      decision: s.Manager_Decision || ""
-    }));
-  }, [data]);
+  const submissions = useMemo(
+    () => data?.submissionHistory || [],
+    [data]
+  );
 
-  const pendingApprovals = useMemo(() => {
-    if (!data || data.userInfo.role !== "Admin") return [];
-    return submissions.filter(s => !s.decision);
-  }, [data, submissions]);
+  const todayStr = new Date().toISOString().split("T")[0];
 
-const todayStr = new Date().toLocaleDateString("en-GB", {
-  day: "2-digit",
-  month: "short",
-  year: "numeric"
-});
+  const pendingTaskCount = submissions.filter(
+    s => !s.Manager_Decision
+  ).length;
 
-const pendingTaskCount = submissions.filter(
-  s => !s.Manager_Decision
-).length;
-
-
-  
-  /* =============================
-     LOGIN (ENTER ENABLED)
-  ============================= */
   if (!authKey) {
     return (
       <form
@@ -136,87 +153,18 @@ const pendingTaskCount = submissions.filter(
       </form>
     );
   }
-if (loading || !data) return <div style={{ padding: 40 }}>Loading…</div>;
 
-const isAdmin = data.userInfo.role === "Admin";
+  if (loading || !data) return <div style={{ padding: 40 }}>Loading…</div>;
 
-const dailyKPIs = (data.kpis || []).filter(
-  k => String(k.KPIType || "").toLowerCase() === "daily"
-);
-
-const weeklyKPIs = (data.kpis || []).filter(
-  k => String(k.KPIType || "").toLowerCase() === "weekly"
-);
-
-const monthlyKPIs = (data.kpis || []).filter(
-  k => String(k.KPIType || "").toLowerCase() === "monthly"
-);
-
-  /* =============================
-     ACTIONS (UNCHANGED)
-  ============================= */
-  const submitUpdate = () => {
-    if (!selectedKPI) return alert("Select KPI");
-
-    const finalProgress =
-      taskStatus === "Done" ? 100 : Number(progressPercent) || 0;
-
-    const kpi = data.kpis.find(k => String(k.KPI_ID) === String(selectedKPI));
-    if (!kpi) return;
-
-    fetch(API_URL, {
-      method: "POST",
-      mode: "no-cors",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        authKey,
-        action: "submit_update",
-        payload: {
-          kpi_id: selectedKPI,
-          kpi_frequency: kpi.KPI_Frequency,
-          task_status: taskStatus,
-          progress_percent: finalProgress,
-          focus_today: focusToday || "N/A",
-          blockers: blockers || "N/A",
-          focus_tomorrow: focusTomorrow || "N/A"
-        }
-      })
-    });
-
-    setSelectedKPI("");
-    setProgressPercent("");
-    setFocusToday("");
-    setBlockers("");
-    setFocusTomorrow("");
-    setTaskStatus("In Progress");
-
-    setTimeout(() => fetchData(authKey), 600);
-  };
-
-  const submitFeedback = (s, decision, adjusted) => {
-    const draft = feedbackDraft[s.ROW_ID] || {};
-    setSavingRowId(s.ROW_ID);
-
-    fetch(API_URL, {
-      method: "POST",
-      mode: "no-cors",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        authKey,
-        action: "submit_feedback",
-        payload: {
-          row_id: s.ROW_ID,
-          kpi_id: s.KPI_ID,
-          decision,
-          adjusted_progress: decision === "Rejected" ? 0 : Number(adjusted) || 0,
-          feedback: draft.feedback || ""
-        }
-      })
-    });
-
-    setTimeout(() => fetchData(authKey), 600);
-    setSavingRowId(null);
-  };
+  const dailyKPIs = data.kpis.filter(
+    k => String(k.KPIType).toLowerCase() === "daily"
+  );
+  const weeklyKPIs = data.kpis.filter(
+    k => String(k.KPIType).toLowerCase() === "weekly"
+  );
+  const monthlyKPIs = data.kpis.filter(
+    k => String(k.KPIType).toLowerCase() === "monthly"
+  );
 
   /* =============================
      UI
@@ -224,17 +172,14 @@ const monthlyKPIs = (data.kpis || []).filter(
   return (
     <div style={{ padding: 24, maxWidth: 1200 }}>
       <h2>KPI Dashboard</h2>
+
       <div style={{ display: "flex", gap: 60, marginBottom: 16 }}>
-  <div>
-    User: <strong>{data.userInfo.name}</strong> ({data.userInfo.role})
-  </div>
-  <div style={{ color: "red" }}>
-    Today: {todayStr}
-  </div>
-  <div style={{ color: "red" }}>
-    Pending Task: {pendingTaskCount}
-  </div>
-</div>
+        <div>
+          User: <strong>{data.userInfo.name}</strong> ({data.userInfo.role})
+        </div>
+        <div style={{ color: "red" }}>Today: {todayStr}</div>
+        <div style={{ color: "red" }}>Pending Task: {pendingTaskCount}</div>
+      </div>
 
       <button
         onClick={() => {
@@ -245,216 +190,45 @@ const monthlyKPIs = (data.kpis || []).filter(
         Log out
       </button>
 
-      {/* KPI OVERVIEW */}
-<div style={section}>
-  <h3>Daily</h3>
-  <div style={{
-    display: "grid",
-    gridTemplateColumns: "repeat(5, 1fr)",
-    gap: 16
-  }}>
-    {dailyKPIs.map(k => (
-      <div key={k.KPI_ID} style={card}>
-        <div><strong>KPI Type:</strong> {k.KPIType}</div>
-        <div><strong>Completion Date:</strong> {k.CompletionDate || "-"}</div>
-        <div style={{ marginTop: 6 }}>
-          <strong>{k.KPI_Name}</strong>
-        </div>
-        <div style={{ fontSize: 13 }}>{k.Description}</div>
-      </div>
-    ))}
-  </div>
-</div>
+      {/* KPI SECTIONS */}
+      {[
+        ["Daily", dailyKPIs],
+        ["Weekly", weeklyKPIs],
+        ["Monthly", monthlyKPIs]
+      ].map(([title, list]) => (
+        <div key={title} style={section}>
+          <h3>{title}</h3>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(5, 1fr)",
+              gap: 16
+            }}
+          >
+            {list.map(k => (
+              <div key={k.KPI_ID} style={card}>
+                {isExpired(k) && <div style={expiredBadge}>EXPIRED</div>}
 
-<div style={section}>
-  <h3>Weekly</h3>
-  <div style={{
-    display: "grid",
-    gridTemplateColumns: "repeat(5, 1fr)",
-    gap: 16
-  }}>
-    {weeklyKPIs.map(k => (
-      <div key={k.KPI_ID} style={card}>
-        <div><strong>KPI Type:</strong> {k.KPIType}</div>
-        <div><strong>Completion Date:</strong> {k.CompletionDate || "-"}</div>
-        <div style={{ marginTop: 6 }}>
-          <strong>{k.KPI_Name}</strong>
-        </div>
-        <div style={{ fontSize: 13 }}>{k.Description}</div>
-      </div>
-    ))}
-  </div>
-</div>
-
-<div style={section}>
-  <h3>Monthly</h3>
-  <div style={{
-    display: "grid",
-    gridTemplateColumns: "repeat(5, 1fr)",
-    gap: 16
-  }}>
-    {monthlyKPIs.map(k => (
-      <div key={k.KPI_ID} style={card}>
-        <div><strong>KPI Type:</strong> {k.KPIType}</div>
-        <div><strong>Completion Date:</strong> {k.CompletionDate || "-"}</div>
-        <div style={{ marginTop: 6 }}>
-          <strong>{k.KPI_Name}</strong>
-        </div>
-        <div style={{ fontSize: 13 }}>{k.Description}</div>
-      </div>
-    ))}
-  </div>
-</div>
-
-      {/* ADMIN APPROVALS */}
-      {isAdmin && (
-        <div style={section}>
-          <h3>Pending Approvals</h3>
-
-          {pendingApprovals.length === 0 && (
-            <div style={{ color: "#6b7280" }}>
-              No pending submissions
-            </div>
-          )}
-
-          {pendingApprovals.map(s => {
-            const draft = feedbackDraft[s.ROW_ID] || {};
-            return (
-              <div key={s.ROW_ID} style={{ ...card, marginBottom: 16 }}>
-                <strong>
-                  {s.Name} | KPI {s.KPI_ID}
-                </strong>
+                <div><strong>KPI Type:</strong> {k.KPIType}</div>
+                <div>
+                  <strong>Completion Date:</strong>{" "}
+                  {formatDateOnly(k.CompletionDate)}
+                </div>
 
                 <div style={{ marginTop: 6 }}>
-                  Submitted Progress:{" "}
-                  <strong>{s.Progress_Percent}%</strong>
+                  <strong>{k.KPI_Name}</strong>
                 </div>
 
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "160px 1fr",
-                    gap: 12,
-                    marginTop: 12
-                  }}
-                >
-                  <label>Adjusted Progress</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={draft.adjusted ?? s.Progress_Percent}
-                    onChange={e =>
-                      setFeedbackDraft({
-                        ...feedbackDraft,
-                        [s.ROW_ID]: {
-                          ...draft,
-                          adjusted: e.target.value
-                        }
-                      })
-                    }
-                  />
-
-                  <label>Manager Feedback</label>
-                  <textarea
-                    value={draft.feedback || ""}
-                    onChange={e =>
-                      setFeedbackDraft({
-                        ...feedbackDraft,
-                        [s.ROW_ID]: {
-                          ...draft,
-                          feedback: e.target.value
-                        }
-                      })
-                    }
-                  />
-                </div>
-
-                <div style={{ marginTop: 12 }}>
-                  <button
-                    onClick={() =>
-                      submitFeedback(s, "Approved", draft.adjusted)
-                    }
-                  >
-                    Approve
-                  </button>
-
-                  <button
-                    style={{ marginLeft: 8, background: "#fee2e2" }}
-                    onClick={() => submitFeedback(s, "Rejected", 0)}
-                  >
-                    Reject
-                  </button>
-                </div>
+                <div style={{ fontSize: 13 }}>{k.Description}</div>
               </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* SUBMIT UPDATE */}
-      <div style={section}>
-        <h3>Submit Update</h3>
-
-        <div
-          style={{
-            ...card,
-            display: "grid",
-            gridTemplateColumns: "repeat(3,1fr)",
-            gap: 12
-          }}
-        >
-          <select
-            value={selectedKPI}
-            onChange={e => setSelectedKPI(e.target.value)}
-          >
-            <option value="">Select KPI</option>
-            {(data.kpis || []).map(k => (
-              <option key={k.KPI_ID} value={k.KPI_ID}>
-                {k.KPI_Name}
-              </option>
             ))}
-          </select>
-
-          <select
-            value={taskStatus}
-            onChange={e => setTaskStatus(e.target.value)}
-          >
-            <option>In Progress</option>
-            <option>Done</option>
-          </select>
-
-          <input
-            type="number"
-            placeholder="Progress %"
-            value={progressPercent}
-            onChange={e => setProgressPercent(e.target.value)}
-          />
-
-          <textarea
-            placeholder="Today"
-            value={focusToday}
-            onChange={e => setFocusToday(e.target.value)}
-          />
-          <textarea
-            placeholder="Blockers"
-            value={blockers}
-            onChange={e => setBlockers(e.target.value)}
-          />
-          <textarea
-            placeholder="Tomorrow"
-            value={focusTomorrow}
-            onChange={e => setFocusTomorrow(e.target.value)}
-          />
-
-          <button onClick={submitUpdate}>Submit</button>
+          </div>
         </div>
-      </div>
+      ))}
 
-      {/* SUBMISSION HISTORY */}
+      {/* SUBMISSION HISTORY (UNCHANGED) */}
       <div style={section}>
         <h3>Submission History</h3>
-
         <table width="100%" cellPadding="10">
           <thead>
             <tr>
@@ -472,11 +246,10 @@ const monthlyKPIs = (data.kpis || []).filter(
               ))}
             </tr>
           </thead>
-
           <tbody>
             {submissions.map(s => (
               <tr key={s.ROW_ID}>
-                <td>{s.Timestamp}</td>
+                <td>{formatDateOnly(s.Timestamp)}</td>
                 <td>{s.Name}</td>
                 <td>{s.KPI_ID}</td>
                 <td>{s.Progress_Percent}%</td>
