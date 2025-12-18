@@ -4,7 +4,7 @@ const API_URL =
   "https://script.google.com/macros/s/AKfycbwutvWRTxac6YzooC2xHx0AHR8V2sDohtyQ7KRSz5IOhpCfZV-MLMKMiW3U00LS5FGT/exec";
 
 /* =============================
-   CONSTANTS (GITHUB PAGES)
+   GITHUB PAGES PATHS
 ============================= */
 const BASE_PATH = "/kpi-dashboard";
 const ICON_LOGIN = `${BASE_PATH}/login.png`;
@@ -108,14 +108,14 @@ export default function App() {
   const [error, setError] = useState("");
 
   /* =============================
-     FAVICON + TITLE (FIXED)
+     FAVICON + TITLE (ROBUST)
   ============================= */
   useEffect(() => {
     let link = document.querySelector("link[rel='icon']");
     if (!link) {
       link = document.createElement("link");
       link.rel = "icon";
-      link.type = "image/x-icon";
+      link.type = "image/png";
       document.head.appendChild(link);
     }
 
@@ -173,7 +173,7 @@ export default function App() {
     : 0;
 
   /* =============================
-     LOGIN VIEW
+     LOGIN VIEW (CENTERED)
   ============================= */
   if (!authKey) {
     return (
@@ -191,16 +191,19 @@ export default function App() {
           background: "#f9fafb"
         }}
       >
-        <div style={{
-          width: 420,
-          padding: 36,
-          borderRadius: 12,
-          background: "#fff",
-          border: "1px solid #e5e7eb",
-          boxShadow: "0 10px 25px rgba(0,0,0,0.06)"
-        }}>
-          <img src={ICON_LOGIN} alt="Login" style={{ width: 48 }} />
-          <h2 style={{ marginTop: 12 }}>KPI Dashboard Login</h2>
+        <div
+          style={{
+            width: 420,
+            padding: 36,
+            borderRadius: 12,
+            background: "#fff",
+            border: "1px solid #e5e7eb",
+            boxShadow: "0 10px 25px rgba(0,0,0,0.06)",
+            textAlign: "center"
+          }}
+        >
+          <img src={ICON_LOGIN} alt="Login" style={{ width: 48, marginBottom: 12 }} />
+          <h2>KPI Dashboard Login</h2>
 
           <input
             type="password"
@@ -208,7 +211,7 @@ export default function App() {
             value={loginKey}
             disabled={loading}
             onChange={e => setLoginKey(e.target.value)}
-            style={{ width: "100%", padding: 12, marginTop: 12 }}
+            style={{ width: "100%", padding: 12, marginTop: 16 }}
           />
 
           <button
@@ -219,7 +222,7 @@ export default function App() {
             {loading ? "Logging in…" : "Login"}
           </button>
 
-          {error && <p style={{ color: "#dc2626" }}>{error}</p>}
+          {error && <p style={{ color: "#dc2626", marginTop: 12 }}>{error}</p>}
         </div>
       </form>
     );
@@ -240,6 +243,7 @@ export default function App() {
 
   const isAdmin = data.userInfo.role === "Admin";
   const myName = data.userInfo.name;
+  const headerIcon = isAdmin ? ICON_ADMIN : ICON_EMPLOYEE;
 
   const splitByOwner = list => ({
     mine: list.filter(k => k.Assigned_User === myName),
@@ -314,9 +318,12 @@ export default function App() {
   ============================= */
   return (
     <div style={{ padding: 24, maxWidth: 1200 }}>
-      <h2>KPI Dashboard</h2>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <img src={headerIcon} alt="Role" style={{ width: 32 }} />
+        <h2 style={{ margin: 0 }}>KPI Dashboard</h2>
+      </div>
 
-      <div style={{ display: "flex", gap: 60, marginBottom: 16 }}>
+      <div style={{ display: "flex", gap: 60, marginTop: 12, marginBottom: 16 }}>
         <div>
           User: <strong>{data.userInfo.name}</strong> ({data.userInfo.role})
         </div>
@@ -324,10 +331,12 @@ export default function App() {
         <div>Pending Task: {pendingTaskCount}</div>
       </div>
 
-      <button onClick={() => {
-        localStorage.removeItem("authKey");
-        window.location.reload();
-      }}>
+      <button
+        onClick={() => {
+          localStorage.removeItem("authKey");
+          window.location.reload();
+        }}
+      >
         Log out
       </button>
 
