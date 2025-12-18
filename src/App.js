@@ -12,25 +12,19 @@ const ICON_ADMIN = `${BASE_PATH}/admin.png`;
 const ICON_EMPLOYEE = `${BASE_PATH}/employee.png`;
 
 /* =============================
-   UI STYLES (FUTURISTIC)
+   UI STYLES
 ============================= */
-const pageBg = {
-  minHeight: "100vh",
-  background: "linear-gradient(135deg, #020617 0%, #0f172a 100%)",
-  color: "#e5e7eb"
-};
-
-const glassCard = {
-  background: "rgba(255,255,255,0.85)",
-  backdropFilter: "blur(14px)",
-  border: "1px solid rgba(255,255,255,0.25)",
-  borderRadius: 18,
-  boxShadow: "0 20px 40px rgba(0,0,0,0.35)"
+const sectionDivider = {
+  borderTop: "1px solid #e5e7eb",
+  margin: "48px 0"
 };
 
 const card = {
-  ...glassCard,
+  border: "1px solid #e5e7eb",
+  borderRadius: 14,
   padding: 18,
+  background: "#ffffff",
+  boxShadow: "0 10px 30px rgba(15,23,42,0.06)",
   display: "flex",
   flexDirection: "column",
   gap: 8
@@ -38,27 +32,28 @@ const card = {
 
 const divider = {
   borderTop: "1px solid #e5e7eb",
-  margin: "8px 0"
-};
-
-const sectionDivider = {
-  borderTop: "2px solid rgba(255,255,255,0.15)",
-  margin: "48px 0"
+  margin: "10px 0"
 };
 
 const progressWrap = {
   height: 8,
   background: "#e5e7eb",
-  borderRadius: 6,
+  borderRadius: 999,
   overflow: "hidden",
-  marginTop: 6
+  marginTop: 8
 };
 
 const progressBar = (percent, expired) => ({
   width: `${percent}%`,
   height: "100%",
-  background: expired ? "#dc2626" : "#22c55e"
+  background: expired ? "#ef4444" : "#22c55e"
 });
+
+const ownerRow = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8
+};
 
 const ownerPill = color => ({
   padding: "4px 12px",
@@ -119,6 +114,7 @@ export default function App() {
     if (!link) {
       link = document.createElement("link");
       link.rel = "icon";
+      link.type = "image/png";
       document.head.appendChild(link);
     }
 
@@ -144,6 +140,7 @@ export default function App() {
       const res = await fetch(`${API_URL}?authKey=${encodeURIComponent(key)}`);
       const json = await res.json();
       if (json.error) throw new Error(json.error);
+
       localStorage.setItem("authKey", key);
       setAuthKey(key);
       setData(json);
@@ -161,22 +158,59 @@ export default function App() {
     if (authKey) fetchData(authKey);
   }, [authKey]);
 
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  const pendingTaskCount = data
+    ? data.kpis.filter(
+        k =>
+          Number(k.Completion) < 100 &&
+          String(k.KPI_Status || "").toLowerCase() !== "done"
+      ).length
+    : 0;
+
   /* =============================
-     LOGIN VIEW
+     LOGIN VIEW (BRIGHT + CENTERED)
   ============================= */
   if (!authKey) {
     return (
-      <div style={{ ...pageBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <form
-          onSubmit={e => {
-            e.preventDefault();
-            if (!loginKey || loading) return;
-            fetchData(loginKey);
+      <form
+        onSubmit={e => {
+          e.preventDefault();
+          if (!loginKey || loading) return;
+          fetchData(loginKey);
+        }}
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%)"
+        }}
+      >
+        <div
+          style={{
+            width: 440,
+            padding: "48px 42px",
+            borderRadius: 20,
+            background: "#ffffff",
+            border: "1px solid #e5e7eb",
+            boxShadow: "0 30px 60px rgba(15,23,42,0.12)",
+            textAlign: "center"
           }}
-          style={{ ...glassCard, padding: 40, width: 420, textAlign: "center" }}
         >
-          <img src={ICON_LOGIN} alt="Login" style={{ width: 80, marginBottom: 16 }} />
-          <h2 style={{ color: "#020617" }}>KPI Dashboard Login</h2>
+          <img
+            src={ICON_LOGIN}
+            alt="Login"
+            style={{
+              width: 80,
+              marginBottom: 24,
+              display: "block",
+              marginLeft: "auto",
+              marginRight: "auto"
+            }}
+          />
+
+          <h2 style={{ marginBottom: 28 }}>KPI Dashboard Login</h2>
 
           <input
             type="password"
@@ -184,109 +218,167 @@ export default function App() {
             value={loginKey}
             disabled={loading}
             onChange={e => setLoginKey(e.target.value)}
-            style={{ width: "100%", padding: 14, marginTop: 16 }}
+            style={{
+              width: "100%",
+              padding: "14px 16px",
+              borderRadius: 10,
+              border: "1px solid #cbd5e1",
+              fontSize: 15
+            }}
           />
 
           <button
             type="submit"
             disabled={loading}
-            style={{ marginTop: 16, width: "100%", padding: 12 }}
+            style={{
+              marginTop: 22,
+              width: "100%",
+              padding: "14px 0",
+              borderRadius: 10,
+              fontWeight: 600
+            }}
           >
             {loading ? "Logging in…" : "Login"}
           </button>
 
-          {error && <p style={{ color: "#dc2626", marginTop: 12 }}>{error}</p>}
-        </form>
-      </div>
+          {error && (
+            <p style={{ color: "#dc2626", marginTop: 16 }}>{error}</p>
+          )}
+        </div>
+      </form>
     );
   }
 
-  if (loading || !data) {
-    return <div style={{ ...pageBg, padding: 40 }}>Loading…</div>;
-  }
+  if (loading || !data) return <div style={{ padding: 40 }}>Loading…</div>;
+
+  /* =============================
+     KPI GROUPING
+  ============================= */
+  const allKPIs = [...data.kpis].sort((a, b) =>
+    String(a.Assigned_User).localeCompare(String(b.Assigned_User))
+  );
+
+  const dailyKPIs = allKPIs.filter(k => k.KPIType === "Daily");
+  const weeklyKPIs = allKPIs.filter(k => k.KPIType === "Weekly");
+  const monthlyKPIs = allKPIs.filter(k => k.KPIType === "Monthly");
+
+  const isAdmin = data.userInfo.role === "Admin";
+  const myName = data.userInfo.name;
+  const headerIcon = isAdmin ? ICON_ADMIN : ICON_EMPLOYEE;
+
+  const splitByOwner = list => ({
+    mine: list.filter(k => k.Assigned_User === myName),
+    others: list.filter(k => k.Assigned_User !== myName)
+  });
+
+  const renderSection = (title, list) => {
+    const { mine, others } = splitByOwner(list);
+
+    const renderCards = items =>
+      items.map(k => {
+        const expired = isExpired(k);
+        const completion = Number(k.Completion) || 0;
+        const diff = daysDiff(k.CompletionDate);
+        const ownerClr = nameColor(k.Assigned_User);
+
+        return (
+          <div key={k.KPI_ID} style={card}>
+            <div style={{ fontWeight: 600, color: expired ? "#ef4444" : "#22c55e" }}>
+              Status: {expired ? "EXPIRED" : "ACTIVE"}
+            </div>
+
+            <div><strong>Due:</strong> {formatDateOnly(k.CompletionDate)}</div>
+            <div><strong>Due in:</strong> {diff} days</div>
+
+            <div style={ownerRow}>
+              <span>Owner:</span>
+              <span style={ownerPill(ownerClr)}>{k.Assigned_User}</span>
+            </div>
+
+            <div style={divider} />
+
+            <strong>{k.KPI_Name}</strong>
+            <div style={{ fontSize: 13 }}>{k.Description}</div>
+
+            <div style={progressWrap}>
+              <div style={progressBar(completion, expired)} />
+            </div>
+
+            <div style={{ fontSize: 12 }}>Progress: {completion}%</div>
+          </div>
+        );
+      });
+
+    return (
+      <>
+        <div style={sectionDivider} />
+        <h3>{title}</h3>
+
+        {isAdmin && mine.length > 0 && (
+          <>
+            <h4>Admin — My Tasks</h4>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 18 }}>
+              {renderCards(mine)}
+            </div>
+          </>
+        )}
+
+        <h4>{isAdmin ? "Employees — Team Tasks" : "Tasks"}</h4>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 18 }}>
+          {renderCards(isAdmin ? others : list)}
+        </div>
+      </>
+    );
+  };
 
   /* =============================
      DASHBOARD
   ============================= */
-  const isAdmin = data.userInfo.role === "Admin";
-  const headerIcon = isAdmin ? ICON_ADMIN : ICON_EMPLOYEE;
-
-  const pendingTaskCount = data.kpis.filter(
-    k => Number(k.Completion) < 100 && String(k.KPI_Status || "").toLowerCase() !== "done"
-  ).length;
-
-  const todayStr = new Date().toISOString().split("T")[0];
-
-  const renderCards = items =>
-    items.map(k => {
-      const expired = isExpired(k);
-      const completion = Number(k.Completion) || 0;
-
-      return (
-        <div key={k.KPI_ID} style={card}>
-          <strong style={{ color: expired ? "#dc2626" : "#16a34a" }}>
-            {expired ? "EXPIRED" : "ACTIVE"}
-          </strong>
-
-          <div>Due: {formatDateOnly(k.CompletionDate)}</div>
-          <div>Owner: <span style={ownerPill(nameColor(k.Assigned_User))}>{k.Assigned_User}</span></div>
-
-          <div style={divider} />
-
-          <strong>{k.KPI_Name}</strong>
-          <div style={{ fontSize: 13 }}>{k.Description}</div>
-
-          <div style={progressWrap}>
-            <div style={progressBar(completion, expired)} />
-          </div>
-
-          <div style={{ fontSize: 12 }}>Progress: {completion}%</div>
-        </div>
-      );
-    });
-
   return (
-    <div style={{ ...pageBg, padding: 32 }}>
-      <div style={{ maxWidth: 1280, margin: "0 auto" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <img
-            src={headerIcon}
-            alt="Role"
-            style={{
-              width: 64,
-              height: 64,
-              padding: 8,
-              borderRadius: 16,
-              background: "rgba(255,255,255,0.85)",
-              boxShadow: "0 12px 30px rgba(0,0,0,.35)"
-            }}
-          />
-          <h1 style={{ margin: 0 }}>KPI Dashboard</h1>
-        </div>
-
-        <div style={{ display: "flex", gap: 48, marginTop: 16 }}>
-          <div>User: <strong>{data.userInfo.name}</strong></div>
-          <div>Today: {todayStr}</div>
-          <div>Pending: {pendingTaskCount}</div>
-        </div>
-
-        <button
-          onClick={() => {
-            localStorage.removeItem("authKey");
-            window.location.reload();
+    <div
+      style={{
+        padding: 32,
+        maxWidth: 1200,
+        background: "#f8fafc",
+        minHeight: "100vh"
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        <img
+          src={headerIcon}
+          alt="Role"
+          style={{
+            width: 52,
+            height: 52,
+            padding: 6,
+            borderRadius: 14,
+            background: "#ffffff",
+            boxShadow: "0 8px 20px rgba(0,0,0,0.12)"
           }}
-          style={{ marginTop: 16 }}
-        >
-          Log out
-        </button>
-
-        <div style={sectionDivider} />
-        <h3>All KPIs</h3>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 20 }}>
-          {renderCards(data.kpis)}
-        </div>
+        />
+        <h2 style={{ margin: 0 }}>KPI Dashboard</h2>
       </div>
+
+      <div style={{ display: "flex", gap: 60, marginTop: 16, marginBottom: 20 }}>
+        <div>
+          User: <strong>{data.userInfo.name}</strong> ({data.userInfo.role})
+        </div>
+        <div>Today: {todayStr}</div>
+        <div>Pending Task: {pendingTaskCount}</div>
+      </div>
+
+      <button
+        onClick={() => {
+          localStorage.removeItem("authKey");
+          window.location.reload();
+        }}
+      >
+        Log out
+      </button>
+
+      {renderSection("Daily", dailyKPIs)}
+      {renderSection("Weekly", weeklyKPIs)}
+      {renderSection("Monthly", monthlyKPIs)}
     </div>
   );
 }
