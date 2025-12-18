@@ -90,6 +90,27 @@ export default function App() {
     return submissions.filter(s => !s.decision);
   }, [data, submissions]);
 
+const todayStr = new Date().toLocaleDateString("en-GB", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric"
+});
+
+const pendingTaskCount = submissions.filter(
+  s => !s.Manager_Decision
+).length;
+
+// Group KPIs by type
+const dailyKPIs = data.kpis.filter(
+  k => String(k.KPIType || "").toLowerCase() === "daily"
+);
+const weeklyKPIs = data.kpis.filter(
+  k => String(k.KPIType || "").toLowerCase() === "weekly"
+);
+const monthlyKPIs = data.kpis.filter(
+  k => String(k.KPIType || "").toLowerCase() === "monthly"
+);
+  
   /* =============================
      LOGIN (ENTER ENABLED)
   ============================= */
@@ -201,9 +222,17 @@ export default function App() {
   return (
     <div style={{ padding: 24, maxWidth: 1200 }}>
       <h2>KPI Dashboard</h2>
-      <p>
-        User: <strong>{data.userInfo.name}</strong> ({data.userInfo.role})
-      </p>
+      <div style={{ display: "flex", gap: 60, marginBottom: 16 }}>
+  <div>
+    User: <strong>{data.userInfo.name}</strong> ({data.userInfo.role})
+  </div>
+  <div style={{ color: "red" }}>
+    Today: {todayStr}
+  </div>
+  <div style={{ color: "red" }}>
+    Pending Task: {pendingTaskCount}
+  </div>
+</div>
 
       <button
         onClick={() => {
@@ -215,36 +244,65 @@ export default function App() {
       </button>
 
       {/* KPI OVERVIEW */}
-      <div style={section}>
-        <h3>KPIs</h3>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))",
-            gap: 16
-          }}
-        >
-          {data.kpis.map(k => (
-            <div key={k.KPI_ID} style={card}>
-              <strong>{k.KPI_Name}</strong>
-              <div style={{ marginTop: 8 }}>{k.Description}</div>
-
-              <div style={{ height: 8, background: "#e5e7eb", marginTop: 12 }}>
-                <div
-                  style={{
-                    width: `${k.Completion || 0}%`,
-                    height: "100%",
-                    background:
-                      k.Completion >= 100 ? "#16a34a" : "#2563eb"
-                  }}
-                />
-              </div>
-
-              <div>Completion: {k.Completion || 0}%</div>
-            </div>
-          ))}
+<div style={section}>
+  <h3>Daily</h3>
+  <div style={{
+    display: "grid",
+    gridTemplateColumns: "repeat(5, 1fr)",
+    gap: 16
+  }}>
+    {dailyKPIs.map(k => (
+      <div key={k.KPI_ID} style={card}>
+        <div><strong>KPI Type:</strong> {k.KPIType}</div>
+        <div><strong>Completion Date:</strong> {k.CompletionDate || "-"}</div>
+        <div style={{ marginTop: 6 }}>
+          <strong>{k.KPI_Name}</strong>
         </div>
+        <div style={{ fontSize: 13 }}>{k.Description}</div>
       </div>
+    ))}
+  </div>
+</div>
+
+<div style={section}>
+  <h3>Weekly</h3>
+  <div style={{
+    display: "grid",
+    gridTemplateColumns: "repeat(5, 1fr)",
+    gap: 16
+  }}>
+    {weeklyKPIs.map(k => (
+      <div key={k.KPI_ID} style={card}>
+        <div><strong>KPI Type:</strong> {k.KPIType}</div>
+        <div><strong>Completion Date:</strong> {k.CompletionDate || "-"}</div>
+        <div style={{ marginTop: 6 }}>
+          <strong>{k.KPI_Name}</strong>
+        </div>
+        <div style={{ fontSize: 13 }}>{k.Description}</div>
+      </div>
+    ))}
+  </div>
+</div>
+
+<div style={section}>
+  <h3>Monthly</h3>
+  <div style={{
+    display: "grid",
+    gridTemplateColumns: "repeat(5, 1fr)",
+    gap: 16
+  }}>
+    {monthlyKPIs.map(k => (
+      <div key={k.KPI_ID} style={card}>
+        <div><strong>KPI Type:</strong> {k.KPIType}</div>
+        <div><strong>Completion Date:</strong> {k.CompletionDate || "-"}</div>
+        <div style={{ marginTop: 6 }}>
+          <strong>{k.KPI_Name}</strong>
+        </div>
+        <div style={{ fontSize: 13 }}>{k.Description}</div>
+      </div>
+    ))}
+  </div>
+</div>
 
       {/* ADMIN APPROVALS */}
       {isAdmin && (
