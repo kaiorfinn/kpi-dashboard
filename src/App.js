@@ -145,10 +145,9 @@ const monthlyKPIs = data.kpis.filter(
       </form>
     );
   }
+if (loading || !data) return <div style={{ padding: 40 }}>Loading…</div>;
 
-  if (loading || !data) return <div style={{ padding: 40 }}>Loading…</div>;
-
-  const isAdmin = data.userInfo.role === "Admin";
+const isAdmin = data.userInfo.role === "Admin";
 
   /* =============================
      ACTIONS (UNCHANGED)
@@ -407,7 +406,7 @@ const monthlyKPIs = data.kpis.filter(
             onChange={e => setSelectedKPI(e.target.value)}
           >
             <option value="">Select KPI</option>
-            {data.kpis.map(k => (
+            {(data.kpis || []).map(k => (
               <option key={k.KPI_ID} value={k.KPI_ID}>
                 {k.KPI_Name}
               </option>
