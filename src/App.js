@@ -49,21 +49,6 @@ const progressBar = (percent, expired) => ({
   background: expired ? "#dc2626" : "#16a34a"
 });
 
-const ownerRow = {
-  display: "flex",
-  alignItems: "center",
-  gap: 6
-};
-
-const ownerPill = color => ({
-  padding: "2px 10px",
-  borderRadius: 999,
-  background: color,
-  color: "#fff",
-  fontSize: 12,
-  fontWeight: 500
-});
-
 /* =============================
    HELPERS
 ============================= */
@@ -83,18 +68,10 @@ const daysDiff = d => {
   return Math.round((due - today) / 86400000);
 };
 
-const isExpired = k => {
-  if (!k.CompletionDate) return false;
-  if (String(k.KPI_Status || "").toLowerCase() === "done") return false;
-  return daysDiff(k.CompletionDate) < 0;
-};
-
-const nameColor = name => {
-  const colors = ["#2563eb", "#7c3aed", "#0d9488", "#ea580c"];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash += name.charCodeAt(i);
-  return colors[hash % colors.length];
-};
+const isExpired = k =>
+  k.CompletionDate &&
+  String(k.KPI_Status || "").toLowerCase() !== "done" &&
+  daysDiff(k.CompletionDate) < 0;
 
 /* =============================
    APP
@@ -107,68 +84,7 @@ export default function App() {
   const [error, setError] = useState("");
 
   /* =============================
-     FAVICON + TITLE
-  ============================= */
-  useEffect(() => {
-    let link = document.querySelector("link[rel='icon']");
-    if (!link) {
-      link = document.createElement("link");
-      link.rel = "icon";
-      document.head.appendChild(link);
-    }
-
-    if (!data) {
-      link.href = ICON_LOGIN;
-      document.title = "KPI Dashboard – Login";
-    } else if (data.userInfo.role === "Admin") {
-      link.href = ICON_ADMIN;
-      document.title = "KPI Dashboard – Admin";
-    } else {
-      link.href = ICON_EMPLOYEE;
-      document.title = "KPI Dashboard – Employee";
-    }
-  }, [data]);
-
-  /* =============================
-     FETCH
-  ============================= */
-  const fetchData = async key => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await fetch(`${API_URL}?authKey=${encodeURIComponent(key)}`);
-      const json = await res.json();
-      if (json.error) throw new Error(json.error);
-
-      localStorage.setItem("authKey", key);
-      setAuthKey(key);
-      setData(json);
-    } catch {
-      localStorage.removeItem("authKey");
-      setAuthKey("");
-      setData(null);
-      setError("Invalid auth key");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (authKey) fetchData(authKey);
-  }, [authKey]);
-
-  const todayStr = new Date().toISOString().split("T")[0];
-
-  const pendingTaskCount = data
-    ? data.kpis.filter(
-        k =>
-          Number(k.Completion) < 100 &&
-          String(k.KPI_Status || "").toLowerCase() !== "done"
-      ).length
-    : 0;
-
-  /* =============================
-     LOGIN VIEW (ICON FIXED)
+     LOGIN VIEW
   ============================= */
   if (!authKey) {
     return (
@@ -176,7 +92,17 @@ export default function App() {
         onSubmit={e => {
           e.preventDefault();
           if (!loginKey || loading) return;
-          fetchData(loginKey);
+          setLoading(true);
+          fetch(`${API_URL}?authKey=${encodeURIComponent(loginKey)}`)
+            .then(r => r.json())
+            .then(j => {
+              if (j.error) throw new Error();
+              localStorage.setItem("authKey", loginKey);
+              setAuthKey(loginKey);
+              setData(j);
+            })
+            .catch(() => setError("Invalid auth key"))
+            .finally(() => setLoading(false));
         }}
         style={{
           minHeight: "100vh",
@@ -189,25 +115,21 @@ export default function App() {
         <div
           style={{
             width: 420,
-            padding: 36,
-            borderRadius: 12,
+            padding: 40,
+            borderRadius: 14,
             background: "#fff",
             border: "1px solid #e5e7eb",
-            boxShadow: "0 10px 25px rgba(0,0,0,0.06)",
+            boxShadow: "0 12px 28px rgba(0,0,0,0.06)",
             textAlign: "center"
           }}
         >
           <img
             src={ICON_LOGIN}
             alt="Login"
-            style={{
-              width: 72,
-              height: 72,
-              marginBottom: 16
-            }}
+            style={{ width: 72, height: 72, marginBottom: 16 }}
           />
 
-          <h2 style={{ marginBottom: 12 }}>KPI Dashboard Login</h2>
+          <h2 style={{ marginBottom: 20 }}>KPI Dashboard Login</h2>
 
           <input
             type="password"
@@ -232,21 +154,23 @@ export default function App() {
     );
   }
 
-  if (loading || !data) return <div style={{ padding: 40 }}>Loading…</div>;
+  if (!data) return <div style={{ padding: 40 }}>Loading…</div>;
 
   const isAdmin = data.userInfo.role === "Admin";
   const headerIcon = isAdmin ? ICON_ADMIN : ICON_EMPLOYEE;
+  const todayStr = new Date().toISOString().split("T")[0];
 
   /* =============================
-     DASHBOARD HEADER (ICON FIXED)
+     DASHBOARD
   ============================= */
   return (
     <div style={{ padding: 24, maxWidth: 1200 }}>
+      {/* Header */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 14,
+          gap: 16,
           marginBottom: 12
         }}
       >
@@ -254,19 +178,19 @@ export default function App() {
           src={headerIcon}
           alt="Role"
           style={{
-            width: 44,
-            height: 44
+            width: isAdmin ? 40 : 36,
+            height: isAdmin ? 40 : 36
           }}
         />
         <h2 style={{ margin: 0 }}>KPI Dashboard</h2>
       </div>
 
+      {/* Meta */}
       <div style={{ display: "flex", gap: 60, marginBottom: 16 }}>
         <div>
           User: <strong>{data.userInfo.name}</strong> ({data.userInfo.role})
         </div>
         <div>Today: {todayStr}</div>
-        <div>Pending Task: {pendingTaskCount}</div>
       </div>
 
       <button
