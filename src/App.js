@@ -10,7 +10,6 @@ const BASE_PATH = "/kpi-dashboard";
 const ICON_LOGIN = `${BASE_PATH}/login.png`;
 const ICON_ADMIN = `${BASE_PATH}/admin.png`;
 const ICON_EMPLOYEE = `${BASE_PATH}/employee.png`;
-const ICON_FAVICON = `${BASE_PATH}/favicon.ico`;
 
 /* =============================
    UI STYLES
@@ -108,14 +107,13 @@ export default function App() {
   const [error, setError] = useState("");
 
   /* =============================
-     FAVICON + TITLE (ROBUST)
+     FAVICON + TITLE
   ============================= */
   useEffect(() => {
     let link = document.querySelector("link[rel='icon']");
     if (!link) {
       link = document.createElement("link");
       link.rel = "icon";
-      link.type = "image/png";
       document.head.appendChild(link);
     }
 
@@ -159,9 +157,6 @@ export default function App() {
     if (authKey) fetchData(authKey);
   }, [authKey]);
 
-  /* =============================
-     DERIVED
-  ============================= */
   const todayStr = new Date().toISOString().split("T")[0];
 
   const pendingTaskCount = data
@@ -173,7 +168,7 @@ export default function App() {
     : 0;
 
   /* =============================
-     LOGIN VIEW (CENTERED)
+     LOGIN VIEW (ICON FIXED)
   ============================= */
   if (!authKey) {
     return (
@@ -202,8 +197,17 @@ export default function App() {
             textAlign: "center"
           }}
         >
-          <img src={ICON_LOGIN} alt="Login" style={{ width: 48, marginBottom: 12 }} />
-          <h2>KPI Dashboard Login</h2>
+          <img
+            src={ICON_LOGIN}
+            alt="Login"
+            style={{
+              width: 72,
+              height: 72,
+              marginBottom: 16
+            }}
+          />
+
+          <h2 style={{ marginBottom: 12 }}>KPI Dashboard Login</h2>
 
           <input
             type="password"
@@ -211,7 +215,7 @@ export default function App() {
             value={loginKey}
             disabled={loading}
             onChange={e => setLoginKey(e.target.value)}
-            style={{ width: "100%", padding: 12, marginTop: 16 }}
+            style={{ width: "100%", padding: 12 }}
           />
 
           <button
@@ -230,100 +234,34 @@ export default function App() {
 
   if (loading || !data) return <div style={{ padding: 40 }}>Loading…</div>;
 
-  /* =============================
-     KPI GROUPING
-  ============================= */
-  const allKPIs = [...data.kpis].sort((a, b) =>
-    String(a.Assigned_User).localeCompare(String(b.Assigned_User))
-  );
-
-  const dailyKPIs = allKPIs.filter(k => k.KPIType === "Daily");
-  const weeklyKPIs = allKPIs.filter(k => k.KPIType === "Weekly");
-  const monthlyKPIs = allKPIs.filter(k => k.KPIType === "Monthly");
-
   const isAdmin = data.userInfo.role === "Admin";
-  const myName = data.userInfo.name;
   const headerIcon = isAdmin ? ICON_ADMIN : ICON_EMPLOYEE;
 
-  const splitByOwner = list => ({
-    mine: list.filter(k => k.Assigned_User === myName),
-    others: list.filter(k => k.Assigned_User !== myName)
-  });
-
   /* =============================
-     KPI SECTION
-  ============================= */
-  const renderSection = (title, list) => {
-    const { mine, others } = splitByOwner(list);
-
-    const renderCards = items =>
-      items.map(k => {
-        const expired = isExpired(k);
-        const completion = Number(k.Completion) || 0;
-        const diff = daysDiff(k.CompletionDate);
-        const ownerClr = nameColor(k.Assigned_User);
-
-        return (
-          <div key={k.KPI_ID} style={card}>
-            <div style={{ fontWeight: 600, color: expired ? "#dc2626" : "#16a34a" }}>
-              Status: {expired ? "EXPIRED" : "ACTIVE"}
-            </div>
-
-            <div><strong>Due:</strong> {formatDateOnly(k.CompletionDate)}</div>
-            <div><strong>Due in:</strong> {diff} days</div>
-
-            <div style={ownerRow}>
-              <span>Owner:</span>
-              <span style={ownerPill(ownerClr)}>{k.Assigned_User}</span>
-            </div>
-
-            <div style={divider} />
-
-            <strong>{k.KPI_Name}</strong>
-            <div style={{ fontSize: 13 }}>{k.Description}</div>
-
-            <div style={progressWrap}>
-              <div style={progressBar(completion, expired)} />
-            </div>
-
-            <div style={{ fontSize: 12 }}>Progress: {completion}%</div>
-          </div>
-        );
-      });
-
-    return (
-      <>
-        <div style={sectionDivider} />
-        <h3>{title}</h3>
-
-        {isAdmin && mine.length > 0 && (
-          <>
-            <h4>Admin — My Tasks</h4>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16 }}>
-              {renderCards(mine)}
-            </div>
-          </>
-        )}
-
-        <h4>{isAdmin ? "Employees — Team Tasks" : "Tasks"}</h4>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16 }}>
-          {renderCards(isAdmin ? others : list)}
-        </div>
-      </>
-    );
-  };
-
-  /* =============================
-     DASHBOARD
+     DASHBOARD HEADER (ICON FIXED)
   ============================= */
   return (
     <div style={{ padding: 24, maxWidth: 1200 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <img src={headerIcon} alt="Role" style={{ width: 32 }} />
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+          marginBottom: 12
+        }}
+      >
+        <img
+          src={headerIcon}
+          alt="Role"
+          style={{
+            width: 44,
+            height: 44
+          }}
+        />
         <h2 style={{ margin: 0 }}>KPI Dashboard</h2>
       </div>
 
-      <div style={{ display: "flex", gap: 60, marginTop: 12, marginBottom: 16 }}>
+      <div style={{ display: "flex", gap: 60, marginBottom: 16 }}>
         <div>
           User: <strong>{data.userInfo.name}</strong> ({data.userInfo.role})
         </div>
@@ -339,10 +277,6 @@ export default function App() {
       >
         Log out
       </button>
-
-      {renderSection("Daily", dailyKPIs)}
-      {renderSection("Weekly", weeklyKPIs)}
-      {renderSection("Monthly", monthlyKPIs)}
     </div>
   );
 }
