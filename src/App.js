@@ -30,6 +30,16 @@ const expiredBadge = {
 };
 
 /* =============================
+   KPI UI LABEL CONFIG (EDIT HERE)
+============================= */
+const KPI_LABELS = {
+  KPIType: "Frequency",
+  CompletionDate: "Due Date",
+  KPI_Name: "Task Name",
+  Description: "Details"
+};
+
+/* =============================
    HELPERS
 ============================= */
 const formatDateOnly = d => {
@@ -52,6 +62,12 @@ const isExpired = k => {
   return due < today;
 };
 
+const renderField = (labelKey, value) => (
+  <div>
+    <strong>{KPI_LABELS[labelKey]}:</strong> {value || "-"}
+  </div>
+);
+
 export default function App() {
   /* =============================
      AUTH
@@ -65,21 +81,6 @@ export default function App() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  /* =============================
-     SUBMIT FORM
-  ============================= */
-  const [selectedKPI, setSelectedKPI] = useState("");
-  const [taskStatus, setTaskStatus] = useState("In Progress");
-  const [progressPercent, setProgressPercent] = useState("");
-  const [focusToday, setFocusToday] = useState("");
-  const [blockers, setBlockers] = useState("");
-  const [focusTomorrow, setFocusTomorrow] = useState("");
-
-  /* =============================
-     ADMIN
-  ============================= */
-  const [feedbackDraft, setFeedbackDraft] = useState({});
 
   /* =============================
      FETCH
@@ -198,6 +199,7 @@ export default function App() {
       ].map(([title, list]) => (
         <div key={title} style={section}>
           <h3>{title}</h3>
+
           <div
             style={{
               display: "grid",
@@ -209,24 +211,23 @@ export default function App() {
               <div key={k.KPI_ID} style={card}>
                 {isExpired(k) && <div style={expiredBadge}>EXPIRED</div>}
 
-                <div><strong>KPI Type:</strong> {k.KPIType}</div>
-                <div>
-                  <strong>Completion Date:</strong>{" "}
-                  {formatDateOnly(k.CompletionDate)}
-                </div>
+                {renderField("KPIType", k.KPIType)}
+                {renderField("CompletionDate", formatDateOnly(k.CompletionDate))}
 
                 <div style={{ marginTop: 6 }}>
                   <strong>{k.KPI_Name}</strong>
                 </div>
 
-                <div style={{ fontSize: 13 }}>{k.Description}</div>
+                <div style={{ fontSize: 13 }}>
+                  {k.Description}
+                </div>
               </div>
             ))}
           </div>
         </div>
       ))}
 
-      {/* SUBMISSION HISTORY (UNCHANGED) */}
+      {/* SUBMISSION HISTORY */}
       <div style={section}>
         <h3>Submission History</h3>
         <table width="100%" cellPadding="10">
