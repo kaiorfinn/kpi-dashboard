@@ -130,7 +130,7 @@ export default function App() {
   const isAdmin = data.userInfo.role === "Admin";
 
   /* =============================
-     ACTIONS (LOGIC UNCHANGED)
+     ACTIONS (UNCHANGED)
   ============================= */
   const submitUpdate = () => {
     if (!selectedKPI) return alert("Select KPI");
@@ -196,7 +196,7 @@ export default function App() {
   };
 
   /* =============================
-     UI (FULL STRUCTURE RESTORED)
+     UI
   ============================= */
   return (
     <div style={{ padding: 24, maxWidth: 1200 }}>
@@ -204,129 +204,162 @@ export default function App() {
       <p>
         User: <strong>{data.userInfo.name}</strong> ({data.userInfo.role})
       </p>
-      <button onClick={() => { localStorage.removeItem("authKey"); window.location.reload(); }}>
+
+      <button
+        onClick={() => {
+          localStorage.removeItem("authKey");
+          window.location.reload();
+        }}
+      >
         Log out
       </button>
 
       {/* KPI OVERVIEW */}
       <div style={section}>
         <h3>KPIs</h3>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 16 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))",
+            gap: 16
+          }}
+        >
           {data.kpis.map(k => (
             <div key={k.KPI_ID} style={card}>
               <strong>{k.KPI_Name}</strong>
               <div style={{ marginTop: 8 }}>{k.Description}</div>
+
               <div style={{ height: 8, background: "#e5e7eb", marginTop: 12 }}>
                 <div
                   style={{
                     width: `${k.Completion || 0}%`,
                     height: "100%",
-                    background: k.Completion >= 100 ? "#16a34a" : "#2563eb"
+                    background:
+                      k.Completion >= 100 ? "#16a34a" : "#2563eb"
                   }}
                 />
               </div>
+
               <div>Completion: {k.Completion || 0}%</div>
             </div>
           ))}
         </div>
       </div>
 
-{/* ADMIN APPROVALS */}
-{isAdmin && (
-  <div style={section}>
-    <h3>Pending Approvals</h3>
+      {/* ADMIN APPROVALS */}
+      {isAdmin && (
+        <div style={section}>
+          <h3>Pending Approvals</h3>
 
-    {pendingApprovals.length === 0 && (
-      <div style={{ color: "#6b7280" }}>No pending submissions</div>
-    )}
+          {pendingApprovals.length === 0 && (
+            <div style={{ color: "#6b7280" }}>
+              No pending submissions
+            </div>
+          )}
 
-    {pendingApprovals.map(s => {
-      const draft = feedbackDraft[s.ROW_ID] || {};
+          {pendingApprovals.map(s => {
+            const draft = feedbackDraft[s.ROW_ID] || {};
+            return (
+              <div key={s.ROW_ID} style={{ ...card, marginBottom: 16 }}>
+                <strong>
+                  {s.Name} | KPI {s.KPI_ID}
+                </strong>
 
-      return (
-        <div key={s.ROW_ID} style={{ ...card, marginBottom: 16 }}>
-          <strong>
-            {s.Name} | KPI {s.KPI_ID}
-          </strong>
+                <div style={{ marginTop: 6 }}>
+                  Submitted Progress:{" "}
+                  <strong>{s.Progress_Percent}%</strong>
+                </div>
 
-          <div style={{ marginTop: 6 }}>
-            Submitted Progress: <strong>{s.Progress_Percent}%</strong>
-          </div>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "160px 1fr",
+                    gap: 12,
+                    marginTop: 12
+                  }}
+                >
+                  <label>Adjusted Progress</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={draft.adjusted ?? s.Progress_Percent}
+                    onChange={e =>
+                      setFeedbackDraft({
+                        ...feedbackDraft,
+                        [s.ROW_ID]: {
+                          ...draft,
+                          adjusted: e.target.value
+                        }
+                      })
+                    }
+                  />
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "160px 1fr",
-              gap: 12,
-              marginTop: 12
-            }}
-          >
-            <label>Adjusted Progress</label>
-            <input
-              type="number"
-              min={0}
-              max={100}
-              value={draft.adjusted ?? s.Progress_Percent}
-              onChange={e =>
-                setFeedbackDraft({
-                  ...feedbackDraft,
-                  [s.ROW_ID]: {
-                    ...draft,
-                    adjusted: e.target.value
-                  }
-                })
-              }
-            />
+                  <label>Manager Feedback</label>
+                  <textarea
+                    value={draft.feedback || ""}
+                    onChange={e =>
+                      setFeedbackDraft({
+                        ...feedbackDraft,
+                        [s.ROW_ID]: {
+                          ...draft,
+                          feedback: e.target.value
+                        }
+                      })
+                    }
+                  />
+                </div>
 
-            <label>Manager Feedback</label>
-            <textarea
-              value={draft.feedback || ""}
-              onChange={e =>
-                setFeedbackDraft({
-                  ...feedbackDraft,
-                  [s.ROW_ID]: {
-                    ...draft,
-                    feedback: e.target.value
-                  }
-                })
-              }
-            />
-          </div>
+                <div style={{ marginTop: 12 }}>
+                  <button
+                    onClick={() =>
+                      submitFeedback(s, "Approved", draft.adjusted)
+                    }
+                  >
+                    Approve
+                  </button>
 
-          <div style={{ marginTop: 12 }}>
-            <button
-              onClick={() =>
-                submitFeedback(s, "Approved", draft.adjusted)
-              }
-            >
-              Approve
-            </button>
-
-            <button
-              style={{ marginLeft: 8, background: "#fee2e2" }}
-              onClick={() => submitFeedback(s, "Rejected", 0)}
-            >
-              Reject
-            </button>
-          </div>
+                  <button
+                    style={{ marginLeft: 8, background: "#fee2e2" }}
+                    onClick={() => submitFeedback(s, "Rejected", 0)}
+                  >
+                    Reject
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
-      );
-    })}
-  </div>
-)}
+      )}
 
       {/* SUBMIT UPDATE */}
       <div style={section}>
         <h3>Submit Update</h3>
-        <div style={{ ...card, display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
-          <select value={selectedKPI} onChange={e => setSelectedKPI(e.target.value)}>
+
+        <div
+          style={{
+            ...card,
+            display: "grid",
+            gridTemplateColumns: "repeat(3,1fr)",
+            gap: 12
+          }}
+        >
+          <select
+            value={selectedKPI}
+            onChange={e => setSelectedKPI(e.target.value)}
+          >
             <option value="">Select KPI</option>
             {data.kpis.map(k => (
-              <option key={k.KPI_ID} value={k.KPI_ID}>{k.KPI_Name}</option>
+              <option key={k.KPI_ID} value={k.KPI_ID}>
+                {k.KPI_Name}
+              </option>
             ))}
           </select>
 
-          <select value={taskStatus} onChange={e => setTaskStatus(e.target.value)}>
+          <select
+            value={taskStatus}
+            onChange={e => setTaskStatus(e.target.value)}
+          >
             <option>In Progress</option>
             <option>Done</option>
           </select>
@@ -338,9 +371,21 @@ export default function App() {
             onChange={e => setProgressPercent(e.target.value)}
           />
 
-          <textarea placeholder="Today" value={focusToday} onChange={e => setFocusToday(e.target.value)} />
-          <textarea placeholder="Blockers" value={blockers} onChange={e => setBlockers(e.target.value)} />
-          <textarea placeholder="Tomorrow" value={focusTomorrow} onChange={e => setFocusTomorrow(e.target.value)} />
+          <textarea
+            placeholder="Today"
+            value={focusToday}
+            onChange={e => setFocusToday(e.target.value)}
+          />
+          <textarea
+            placeholder="Blockers"
+            value={blockers}
+            onChange={e => setBlockers(e.target.value)}
+          />
+          <textarea
+            placeholder="Tomorrow"
+            value={focusTomorrow}
+            onChange={e => setFocusTomorrow(e.target.value)}
+          />
 
           <button onClick={submitUpdate}>Submit</button>
         </div>
@@ -349,14 +394,25 @@ export default function App() {
       {/* SUBMISSION HISTORY */}
       <div style={section}>
         <h3>Submission History</h3>
+
         <table width="100%" cellPadding="10">
           <thead>
             <tr>
-              {["Time","Name","KPI","Submitted","Adjusted","Decision","Feedback","Reviewed By"].map(h => (
+              {[
+                "Time",
+                "Name",
+                "KPI",
+                "Submitted",
+                "Adjusted",
+                "Decision",
+                "Feedback",
+                "Reviewed By"
+              ].map(h => (
                 <th key={h}>{h}</th>
               ))}
             </tr>
           </thead>
+
           <tbody>
             {submissions.map(s => (
               <tr key={s.ROW_ID}>
