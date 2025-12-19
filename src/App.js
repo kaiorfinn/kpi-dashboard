@@ -4,7 +4,7 @@ const API_URL =
   "https://script.google.com/macros/s/AKfycbwutvWRTxac6YzooC2xHx0AHR8V2sDohtyQ7KRSz5IOhpCfZV-MLMKMiW3U00LS5FGT/exec";
 
 /* =============================
-   GITHUB PAGES PATHS
+   PATHS
 ============================= */
 const BASE_PATH = "/kpi-dashboard";
 const ICON_LOGIN = `${BASE_PATH}/login.png`;
@@ -12,7 +12,7 @@ const ICON_ADMIN = `${BASE_PATH}/admin.png`;
 const ICON_EMPLOYEE = `${BASE_PATH}/employee.png`;
 
 /* =============================
-   SHARED STYLES
+   STYLES
 ============================= */
 const card = {
   background: "#fff",
@@ -57,7 +57,7 @@ export default function App() {
   const [loginKey, setLoginKey] = useState("");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [tab, setTab] = useState("tasks"); // tasks | history
+  const [tab, setTab] = useState("tasks");
 
   const [activeTask, setActiveTask] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -75,16 +75,19 @@ export default function App() {
   ============================= */
   const fetchData = async key => {
     setLoading(true);
-    const res = await fetch(`${API_URL}?authKey=${encodeURIComponent(key)}`);
-    const json = await res.json();
-    if (json.error) {
-      setAuthKey("");
-      localStorage.removeItem("authKey");
-    } else {
+    try {
+      const res = await fetch(`${API_URL}?authKey=${encodeURIComponent(key)}`);
+      const json = await res.json();
+      if (json.error) throw new Error();
       setData(json);
       localStorage.setItem("authKey", key);
+      setAuthKey(key);
+    } catch {
+      setAuthKey("");
+      localStorage.removeItem("authKey");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -127,38 +130,47 @@ export default function App() {
     );
   }
 
-  if (!data) return <div>Loading…</div>;
+  if (!data || loading) return <div>Loading…</div>;
 
   const isAdmin = data.userInfo.role === "Admin";
+  const myName = data.userInfo.name;
   const icon = isAdmin ? ICON_ADMIN : ICON_EMPLOYEE;
+
   const grouped = groupByType(data.kpis);
+
+  const today = new Date().toISOString().split("T")[0];
+  const pendingCount = data.kpis.filter(
+    k => Number(k.Completion) < 100
+  ).length;
 
   /* =============================
      SUBMIT UPDATE
   ============================= */
   const submitUpdate = async () => {
     setSubmitting(true);
-
-    await fetch(API_URL, {
-      method: "POST",
-      body: JSON.stringify({
-        authKey,
-        action: "submit_update",
-        payload: {
-          kpi_id: activeTask.KPI_ID,
-          kpi_frequency: activeTask.KPIType,
-          task_status: form.status,
-          progress_percent: form.status === "Done" ? 100 : form.progress,
-          focus_today: form.today,
-          blockers: form.blockers,
-          focus_tomorrow: form.next
-        }
-      })
-    });
-
-    setSubmitting(false);
-    setActiveTask(null);
-    fetchData(authKey);
+    try {
+      await fetch(API_URL, {
+        method: "POST",
+        body: JSON.stringify({
+          authKey,
+          action: "submit_update",
+          payload: {
+            kpi_id: activeTask.KPI_ID,
+            kpi_frequency: activeTask.KPIType,
+            task_status: form.status,
+            progress_percent:
+              form.status === "Done" ? 100 : Number(form.progress),
+            focus_today: form.today,
+            blockers: form.blockers,
+            focus_tomorrow: form.next
+          }
+        })
+      });
+      setActiveTask(null);
+      fetchData(authKey);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   /* =============================
@@ -170,6 +182,11 @@ export default function App() {
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <img src={icon} alt="" style={{ width: 48 }} />
         <h2>KPI Dashboard</h2>
+      </div>
+
+      <div style={{ marginTop: 8, fontSize: 14 }}>
+        User: <strong>{data.userInfo.name}</strong> ({data.userInfo.role}) |
+        Today: {today} | Pending Tasks: {pendingCount}
       </div>
 
       {/* TABS */}
@@ -185,49 +202,52 @@ export default function App() {
         </button>
       </div>
 
-      {/* TASKS TAB */}
+      {/* TASKS */}
       {tab === "tasks" &&
         ["Daily", "Weekly", "Monthly"].map(type => (
           <div key={type}>
             <h3 style={sectionTitle}>{type}</h3>
-            {grouped[type].map(k => (
-              <div key={k.KPI_ID} style={card}>
-                <strong>{k.KPI_Name}</strong>
-                <div>Due: {formatDate(k.CompletionDate)}</div>
-                <div>Progress: {k.Completion}%</div>
+            {grouped[type].map(k => {
+              const canUpdate =
+                k.Assigned_User === myName; // ADMIN OR EMPLOYEE OWNERSHIP
 
-                {!isAdmin && (
-                  <button
-                    style={{ ...button, marginTop: 8 }}
-                    onClick={() => {
-                      setActiveTask(k);
-                      setForm({
-                        status: "In Progress",
-                        progress: k.Completion || 0,
-                        today: "",
-                        blockers: "",
-                        next: ""
-                      });
-                    }}
-                  >
-                    Update
-                  </button>
-                )}
+              return (
+                <div key={k.KPI_ID} style={card}>
+                  <strong>{k.KPI_Name}</strong>
+                  <div>Due: {formatDate(k.CompletionDate)}</div>
+                  <div>Progress: {k.Completion}%</div>
 
-                {!isAdmin && k.Manager_Decision && (
-                  <div style={{ marginTop: 8, fontSize: 13 }}>
-                    <div>
+                  {canUpdate && (
+                    <button
+                      style={{ ...button, marginTop: 8 }}
+                      onClick={() => {
+                        setActiveTask(k);
+                        setForm({
+                          status: "In Progress",
+                          progress: k.Completion || 0,
+                          today: "",
+                          blockers: "",
+                          next: ""
+                        });
+                      }}
+                    >
+                      Update
+                    </button>
+                  )}
+
+                  {k.Manager_Decision && (
+                    <div style={{ marginTop: 8, fontSize: 13 }}>
                       <strong>Manager:</strong> {k.Manager_Decision}
+                      <div>{k.Manager_Feedback}</div>
                     </div>
-                    <div>{k.Manager_Feedback}</div>
-                  </div>
-                )}
-              </div>
-            ))}
+                  )}
+                </div>
+              );
+            })}
           </div>
         ))}
 
-      {/* HISTORY TAB */}
+      {/* HISTORY */}
       {tab === "history" &&
         ["Daily", "Weekly", "Monthly"].map(type => (
           <div key={type}>
@@ -239,6 +259,7 @@ export default function App() {
                   <th>KPI</th>
                   <th>Status</th>
                   <th>Progress</th>
+                  <th>Manager</th>
                 </tr>
               </thead>
               <tbody>
@@ -250,6 +271,7 @@ export default function App() {
                       <td>{s.KPI_ID}</td>
                       <td>{s.Task_Status}</td>
                       <td>{s.Progress_Percent}%</td>
+                      <td>{s.Manager_Decision || "-"}</td>
                     </tr>
                   ))}
               </tbody>
@@ -287,6 +309,7 @@ export default function App() {
                 type="range"
                 min="0"
                 max="100"
+                step="10"
                 value={form.progress}
                 onChange={e =>
                   setForm({ ...form, progress: e.target.value })
