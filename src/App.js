@@ -12,6 +12,17 @@ const ICON_ADMIN = `${BASE_PATH}/admin.png`;
 const ICON_EMPLOYEE = `${BASE_PATH}/employee.png`;
 
 /* =============================
+   SHARED CONTROL BASE (KEY FIX)
+============================= */
+const controlBase = {
+  width: "100%",
+  height: 52,
+  borderRadius: 12,
+  fontSize: 16,
+  boxSizing: "border-box"
+};
+
+/* =============================
    UI STYLES
 ============================= */
 const sectionDivider = {
@@ -169,7 +180,7 @@ export default function App() {
     : 0;
 
   /* =============================
-     LOGIN VIEW (BRIGHT + CENTERED)
+     LOGIN VIEW (FIXED)
   ============================= */
   if (!authKey) {
     return (
@@ -181,6 +192,7 @@ export default function App() {
         }}
         style={{
           minHeight: "100vh",
+          padding: 24,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -189,7 +201,8 @@ export default function App() {
       >
         <div
           style={{
-            width: 440,
+            width: "100%",
+            maxWidth: 440,
             padding: "48px 42px",
             borderRadius: 20,
             background: "#ffffff",
@@ -201,16 +214,10 @@ export default function App() {
           <img
             src={ICON_LOGIN}
             alt="Login"
-            style={{
-              width: 80,
-              marginBottom: 24,
-              display: "block",
-              marginLeft: "auto",
-              marginRight: "auto"
-            }}
+            style={{ width: 80, marginBottom: 28 }}
           />
 
-          <h2 style={{ marginBottom: 28 }}>KPI Dashboard Login</h2>
+          <h2 style={{ marginBottom: 24 }}>KPI Dashboard Login</h2>
 
           <input
             type="password"
@@ -219,11 +226,9 @@ export default function App() {
             disabled={loading}
             onChange={e => setLoginKey(e.target.value)}
             style={{
-              width: "100%",
-              padding: "14px 16px",
-              borderRadius: 10,
-              border: "1px solid #cbd5e1",
-              fontSize: 15
+              ...controlBase,
+              padding: "0 16px",
+              border: "1px solid #cbd5e1"
             }}
           />
 
@@ -231,11 +236,12 @@ export default function App() {
             type="submit"
             disabled={loading}
             style={{
-              marginTop: 22,
-              width: "100%",
-              padding: "14px 0",
-              borderRadius: 10,
-              fontWeight: 600
+              ...controlBase,
+              marginTop: 18,
+              fontWeight: 600,
+              background: "#f1f5f9",
+              border: "2px solid #111827",
+              cursor: "pointer"
             }}
           >
             {loading ? "Logging in…" : "Login"}
@@ -252,7 +258,7 @@ export default function App() {
   if (loading || !data) return <div style={{ padding: 40 }}>Loading…</div>;
 
   /* =============================
-     KPI GROUPING
+     DASHBOARD (UNCHANGED LOGIC)
   ============================= */
   const allKPIs = [...data.kpis].sort((a, b) =>
     String(a.Assigned_User).localeCompare(String(b.Assigned_User))
@@ -331,18 +337,8 @@ export default function App() {
     );
   };
 
-  /* =============================
-     DASHBOARD
-  ============================= */
   return (
-    <div
-      style={{
-        padding: 32,
-        maxWidth: 1200,
-        background: "#f8fafc",
-        minHeight: "100vh"
-      }}
-    >
+    <div style={{ padding: 32, maxWidth: 1200, background: "#f8fafc", minHeight: "100vh" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
         <img
           src={headerIcon}
@@ -366,15 +362,6 @@ export default function App() {
         <div>Today: {todayStr}</div>
         <div>Pending Task: {pendingTaskCount}</div>
       </div>
-
-      <button
-        onClick={() => {
-          localStorage.removeItem("authKey");
-          window.location.reload();
-        }}
-      >
-        Log out
-      </button>
 
       {renderSection("Daily", dailyKPIs)}
       {renderSection("Weekly", weeklyKPIs)}
