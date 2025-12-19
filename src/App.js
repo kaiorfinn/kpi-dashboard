@@ -130,7 +130,7 @@ export default function App() {
     );
   }
 
-  if (!data || loading) return <div>Loading…</div>;
+  if (!data || loading) return <div style={{ padding: 24 }}>Loading…</div>;
 
   const isAdmin = data.userInfo.role === "Admin";
   const myName = data.userInfo.name;
@@ -144,9 +144,11 @@ export default function App() {
   ).length;
 
   /* =============================
-     SUBMIT UPDATE
+     SUBMIT UPDATE (FIXED)
   ============================= */
   const submitUpdate = async () => {
+    if (!activeTask || submitting) return;
+
     setSubmitting(true);
     try {
       await fetch(API_URL, {
@@ -166,6 +168,7 @@ export default function App() {
           }
         })
       });
+
       setActiveTask(null);
       fetchData(authKey);
     } finally {
@@ -182,6 +185,16 @@ export default function App() {
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <img src={icon} alt="" style={{ width: 48 }} />
         <h2>KPI Dashboard</h2>
+
+        <button
+          style={{ ...button, marginLeft: "auto" }}
+          onClick={() => {
+            localStorage.removeItem("authKey");
+            setAuthKey("");
+          }}
+        >
+          Logout
+        </button>
       </div>
 
       <div style={{ marginTop: 8, fontSize: 14 }}>
@@ -207,15 +220,37 @@ export default function App() {
         ["Daily", "Weekly", "Monthly"].map(type => (
           <div key={type}>
             <h3 style={sectionTitle}>{type}</h3>
+
             {grouped[type].map(k => {
-              const canUpdate =
-                k.Assigned_User === myName; // ADMIN OR EMPLOYEE OWNERSHIP
+              const canUpdate = k.Assigned_User === myName;
 
               return (
                 <div key={k.KPI_ID} style={card}>
                   <strong>{k.KPI_Name}</strong>
                   <div>Due: {formatDate(k.CompletionDate)}</div>
-                  <div>Progress: {k.Completion}%</div>
+
+                  {/* PROGRESS BAR */}
+                  <div style={{ marginTop: 6 }}>
+                    <div
+                      style={{
+                        height: 8,
+                        background: "#e5e7eb",
+                        borderRadius: 6,
+                        overflow: "hidden"
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: "100%",
+                          width: `${k.Completion}%`,
+                          background: "#22c55e"
+                        }}
+                      />
+                    </div>
+                    <div style={{ fontSize: 12 }}>
+                      Progress: {k.Completion}%
+                    </div>
+                  </div>
 
                   {canUpdate && (
                     <button
@@ -305,16 +340,19 @@ export default function App() {
             </select>
 
             {form.status !== "Done" && (
-              <input
-                type="range"
-                min="0"
-                max="100"
-                step="10"
-                value={form.progress}
-                onChange={e =>
-                  setForm({ ...form, progress: e.target.value })
-                }
-              />
+              <>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="10"
+                  value={form.progress}
+                  onChange={e =>
+                    setForm({ ...form, progress: Number(e.target.value) })
+                  }
+                />
+                <div>{form.progress}%</div>
+              </>
             )}
 
             <textarea
